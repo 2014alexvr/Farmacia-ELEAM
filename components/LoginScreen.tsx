@@ -1,33 +1,40 @@
-import React, { useState } from 'react';
-import { UserRole, PermissionLevel } from '../types';
-import { USER_CREDENTIALS } from '../constants';
+
+import React, { useState, useMemo } from 'react';
+import { UserRole, ManagedUser } from '../types';
 import PillIcon from './icons/PillIcon';
 import CloseIcon from './icons/CloseIcon';
 
 interface LoginScreenProps {
-  onLogin: (user: { role: UserRole; permissions: PermissionLevel }) => void;
+  users: ManagedUser[];
+  onLogin: (userId: string, passwordAttempt: string) => boolean;
 }
 
-const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
+const LoginScreen: React.FC<LoginScreenProps> = ({ users, onLogin }) => {
   const roles = Object.values(UserRole);
   const [selectedRole, setSelectedRole] = useState<UserRole | null>(null);
+  const [selectedUserId, setSelectedUserId] = useState<string>('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
 
+  const usersForSelectedRole = useMemo(() => {
+    if (!selectedRole) return [];
+    return users.filter(u => u.role === selectedRole);
+  }, [selectedRole, users]);
+
   const handleRoleSelect = (role: UserRole) => {
     setSelectedRole(role);
+    const firstUserInRole = users.find(u => u.role === role);
+    setSelectedUserId(firstUserInRole ? firstUserInRole.id : '');
     setError('');
     setPassword('');
   };
 
   const handlePasswordSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedRole) return;
+    if (!selectedUserId) return;
 
-    const credentials = USER_CREDENTIALS[selectedRole];
-    if (credentials && credentials.password === password) {
-      onLogin({ role: selectedRole, permissions: credentials.permissions });
-    } else {
+    const success = onLogin(selectedUserId, password);
+    if (!success) {
       setError('Contraseña incorrecta. Por favor, intente de nuevo.');
     }
   };
@@ -35,6 +42,8 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
   const closeModal = () => {
     setSelectedRole(null);
   };
+
+  const selectedUserName = users.find(u => u.id === selectedUserId)?.name || '';
 
   return (
     <>
@@ -45,7 +54,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
               <PillIcon className="w-16 h-16 text-brand-primary" />
             </div>
             <h1 className="text-4xl font-bold text-brand-dark">FARMACIA ELEAM</h1>
-            <p className="mt-2 text-lg text-gray-600">Gestión de Medicamentos</p>
+            <p className="mt-2 text-lg text-gray-600">Sistema de Gestión de Medicamentos</p>
           </div>
           
           <div className="space-y-4">
@@ -78,14 +87,29 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
                 <p className="text-center text-gray-700 mb-4">
                   Iniciando sesión como <span className="font-bold">{selectedRole}</span>
                 </p>
+
+                <div className="mb-4">
+                  <label htmlFor="user-select" className="block text-sm font-medium text-gray-700">Usuario</label>
+                  <select
+                    id="user-select"
+                    value={selectedUserId}
+                    onChange={(e) => setSelectedUserId(e.target.value)}
+                    className="mt-1 block w-full px-3 py-2 border border-gray-300 bg-white text-black rounded-md shadow-sm focus:outline-none focus:ring-brand-secondary focus:border-brand-secondary sm:text-sm"
+                  >
+                    {usersForSelectedRole.map(user => (
+                      <option key={user.id} value={user.id} className="text-black">{user.name}</option>
+                    ))}
+                  </select>
+                </div>
+
                 <div>
-                  <label htmlFor="password" className="sr-only">Contraseña</label>
+                  <label htmlFor="password" className="block text-sm font-medium text-gray-700">Contraseña para <span className="font-semibold">{selectedUserName}</span></label>
                   <input
                     type="password"
                     id="password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-brand-secondary focus:border-brand-secondary sm:text-sm"
+                    className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-brand-secondary focus:border-brand-secondary sm:text-sm text-black bg-gray-200"
                     required
                     autoFocus
                   />

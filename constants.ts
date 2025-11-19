@@ -1,11 +1,19 @@
-import { Panel, UserRole, Resident, Medication, ResidentMedication, Provenance, PermissionLevel } from './types';
 
-export const USER_CREDENTIALS: Record<UserRole, { password: string; permissions: PermissionLevel; name: string }> = {
-  [UserRole.Admin]: { password: 'admin1122', permissions: 'Total', name: 'Administración ELEAM' },
-  [UserRole.Director]: { password: 'pin1122', permissions: 'Solo Lectura', name: 'Dirección Técnica' },
-  [UserRole.Tens]: { password: 'pau1122', permissions: 'Modificar', name: 'Tens' },
-  [UserRole.Visitor]: { password: 'visita1122', permissions: 'Solo Lectura', name: 'Visita' },
+import { Panel, UserRole, Resident, Medication, ResidentMedication, Provenance, PermissionLevel, ManagedUser } from './types';
+
+export const ROLE_PERMISSIONS: Record<UserRole, PermissionLevel> = {
+  [UserRole.Admin]: 'Total',
+  [UserRole.Director]: 'Solo Lectura',
+  [UserRole.Tens]: 'Modificar',
+  [UserRole.Visitor]: 'Solo Lectura',
 };
+
+export const MOCK_USERS: ManagedUser[] = [
+  { id: 'user-admin', role: UserRole.Admin, name: 'Administración ELEAM', password: 'admin1122', permissions: 'Total' },
+  { id: 'user-director', role: UserRole.Director, name: 'Dirección Técnica', password: 'pin1122', permissions: 'Solo Lectura' },
+  { id: 'user-tens', role: UserRole.Tens, name: 'Tens', password: 'pau1122', permissions: 'Modificar' },
+  { id: 'user-visitor', role: UserRole.Visitor, name: 'Visita', password: 'visita1122', permissions: 'Solo Lectura' },
+];
 
 
 export const MOCK_RESIDENTS: Resident[] = [
@@ -98,18 +106,22 @@ export const ROLE_PANELS: Record<UserRole, Panel[]> = {
   [UserRole.Admin]: [
     Panel.Dashboard,
     Panel.Residents,
+    Panel.GeneralInventory,
     Panel.SummaryCesfam,
     Panel.SummaryIndividualStock,
+    Panel.AdminApp,
   ],
   [UserRole.Director]: [
     Panel.Dashboard,
     Panel.Residents,
+    Panel.GeneralInventory,
     Panel.SummaryCesfam,
     Panel.SummaryIndividualStock,
   ],
   [UserRole.Tens]: [
     Panel.Dashboard,
     Panel.Residents,
+    Panel.GeneralInventory,
     Panel.SummaryCesfam,
     Panel.SummaryIndividualStock,
   ],

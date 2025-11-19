@@ -1,3 +1,5 @@
+
+
 export enum UserRole {
   Admin = 'Administrador ELEAM',
   Director = 'Dirección Técnica',
@@ -13,15 +15,25 @@ export interface User {
   permissions: PermissionLevel;
 }
 
+export interface ManagedUser {
+  id: string;
+  role: UserRole;
+  name: string;
+  password: string;
+  permissions: PermissionLevel;
+}
+
 export enum Panel {
   Dashboard = 'Inicio',
   Residents = 'Residentes',
   Medications = 'Medicamentos',
-  SummaryCesfam = 'Resumen de Stock General',
+  GeneralInventory = 'Inventario General', // New Panel
+  SummaryCesfam = 'Bajo Stock Crítico',
   SummaryIndividualStock = 'Resumen de Stock Individual',
   SummaryMentalHealth = 'Resumen Salud Mental',
   SummaryFamily = 'Resumen Familia',
   SummaryPurchases = 'Resumen Compras',
+  AdminApp = 'Administración App',
   ResidentMedications = 'Medicamentos de Residente', // Panel virtual
   LowStockSummary = 'Medicamentos con Bajo Stock' // Panel virtual
 }

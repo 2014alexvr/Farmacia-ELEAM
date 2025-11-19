@@ -1,7 +1,6 @@
-import React, { useState, useMemo } from 'react';
+
+import React, { useMemo } from 'react';
 import { Resident, ResidentMedication, LowStockItem } from '../../types';
-import PillIcon from '../icons/PillIcon';
-import LowStockMedicationsModal from './LowStockMedicationsModal';
 
 interface SummaryCesfamPanelProps {
     residents: Resident[];
@@ -9,7 +8,6 @@ interface SummaryCesfamPanelProps {
 }
 
 const SummaryCesfamPanel: React.FC<SummaryCesfamPanelProps> = ({ residents, residentMedications }) => {
-    const [isModalOpen, setIsModalOpen] = useState(false);
 
     const lowStockItems: LowStockItem[] = useMemo(() => {
         const items: LowStockItem[] = [];
@@ -33,39 +31,43 @@ const SummaryCesfamPanel: React.FC<SummaryCesfamPanelProps> = ({ residents, resi
 
     return (
         <div>
-            <h1 className="text-3xl font-bold text-gray-800 mb-6">{`Resumen de Stock General`}</h1>
+            <h1 className="text-3xl font-bold text-gray-800 mb-6">{`Bajo Stock Crítico`}</h1>
             <p className="text-gray-600 mb-8">
                 Análisis del inventario de todos los medicamentos en el sistema. Se considera bajo stock si un medicamento tiene cobertura para 6 días o menos.
             </p>
 
-            <div className="max-w-md">
-                <button
-                    onClick={() => setIsModalOpen(true)}
-                    disabled={lowStockItems.length === 0}
-                    className="disabled:opacity-60 disabled:cursor-not-allowed w-full text-left focus:outline-none focus:ring-2 focus:ring-brand-secondary rounded-xl group"
-                >
-                    <div className="bg-white py-6 px-4 rounded-xl shadow-lg flex items-center justify-between transition-shadow group-hover:shadow-xl">
-                        <div className="flex items-center">
-                            <div className={`p-3 mr-4 rounded-full ${lowStockItems.length > 0 ? "bg-red-500" : "bg-yellow-500"} text-white`}>
-                                <PillIcon className="w-8 h-8" />
-                            </div>
-                            <div>
-                                <p className="text-lg font-bold text-gray-800">Medicamentos con Bajo Stock</p>
-                                <p className="text-sm text-gray-500">{lowStockItems.length} items requieren atención</p>
-                            </div>
-                        </div>
-                        <span className="text-base font-bold text-brand-secondary group-hover:underline">Ver</span>
-                    </div>
-                </button>
+            <div className="bg-white p-6 rounded-xl shadow-lg">
+                <div className="overflow-x-auto">
+                    <table className="w-full text-left">
+                        <thead className="bg-gray-50">
+                            <tr>
+                                <th className="p-4 font-semibold text-gray-600">Medicamento</th>
+                                <th className="p-4 font-semibold text-gray-600 text-center">Stock Actual</th>
+                                <th className="p-4 font-semibold text-gray-600 text-center">Días con Stock</th>
+                                <th className="p-4 font-semibold text-gray-600 text-center">Umbral Mínimo</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {lowStockItems.length > 0 ? (
+                                lowStockItems.map((item, index) => (
+                                    <tr key={index} className={`border-t ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}>
+                                        <td className="p-4 font-medium text-gray-800">{item.medicationName}</td>
+                                        <td className="p-4 text-center font-bold text-gray-800">{item.currentStock}</td>
+                                        <td className="p-4 text-center font-bold text-red-600">{`${item.stockDays} días`}</td>
+                                        <td className="p-4 text-center text-gray-700">{"< 7 días"}</td>
+                                    </tr>
+                                ))
+                            ) : (
+                                <tr>
+                                    <td colSpan={4} className="text-center p-8 text-gray-500">
+                                        No hay medicamentos con bajo stock crítico.
+                                    </td>
+                                </tr>
+                            )}
+                        </tbody>
+                    </table>
+                </div>
             </div>
-
-
-            {isModalOpen && (
-                <LowStockMedicationsModal
-                    lowStockItems={lowStockItems}
-                    onClose={() => setIsModalOpen(false)}
-                />
-            )}
         </div>
     );
 };
