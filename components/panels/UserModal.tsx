@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { ManagedUser, UserRole } from '../../types';
 import { ROLE_PERMISSIONS } from '../../constants';
@@ -11,17 +12,27 @@ interface UserModalProps {
 
 const UserModal: React.FC<UserModalProps> = ({ onClose, onSave, userToEdit }) => {
   const [name, setName] = useState('');
-  const [role, setRole] = useState<UserRole>(UserRole.Visitor);
+  const [selectedPermission, setSelectedPermission] = useState<string>('Sólo Lectura');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [passwordError, setPasswordError] = useState('');
 
   const isEditing = !!userToEdit;
 
+  const permissionOptions = ['Total', 'Modificar', 'Sólo Lectura'];
+
   useEffect(() => {
     if (isEditing && userToEdit) {
       setName(userToEdit.name);
-      setRole(userToEdit.role);
+      // Map internal role to permission display option
+      if (userToEdit.role === UserRole.Admin) {
+          setSelectedPermission('Total');
+      } else if (userToEdit.role === UserRole.Tens) {
+          setSelectedPermission('Modificar');
+      } else {
+          // Director or Visitor maps to Sólo Lectura
+          setSelectedPermission('Sólo Lectura');
+      }
     }
   }, [isEditing, userToEdit]);
 
@@ -45,11 +56,17 @@ const UserModal: React.FC<UserModalProps> = ({ onClose, onSave, userToEdit }) =>
     setPasswordError('');
     if (!isFormValid) return;
 
-    const permissions = ROLE_PERMISSIONS[role];
+    // Map selected permission back to the appropriate UserRole
+    let finalRole = UserRole.Director; // Default for Read Only
+    if (selectedPermission === 'Total') finalRole = UserRole.Admin;
+    else if (selectedPermission === 'Modificar') finalRole = UserRole.Tens;
+    else if (selectedPermission === 'Sólo Lectura') finalRole = UserRole.Director;
+
+    const permissions = ROLE_PERMISSIONS[finalRole];
     
     let userData: Partial<ManagedUser> & { name: string; role: UserRole; permissions: string } = {
       name,
-      role,
+      role: finalRole,
       permissions,
     };
     
@@ -57,7 +74,7 @@ const UserModal: React.FC<UserModalProps> = ({ onClose, onSave, userToEdit }) =>
       const finalUserData: ManagedUser = {
           ...userToEdit,
           name,
-          role,
+          role: finalRole,
           permissions,
           password: password ? password : userToEdit.password,
       };
@@ -86,19 +103,21 @@ const UserModal: React.FC<UserModalProps> = ({ onClose, onSave, userToEdit }) =>
                 id="name"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-brand-secondary focus:border-brand-secondary sm:text-sm"
+                className="mt-1 block w-full px-3 py-2 border border-gray-500 rounded-md shadow-sm focus:outline-none focus:ring-brand-secondary focus:border-brand-secondary sm:text-sm bg-gray-600 text-white placeholder-gray-300"
                 required
               />
             </div>
             <div>
-              <label htmlFor="role" className="block text-sm font-medium text-gray-700">Rol</label>
+              <label htmlFor="permission" className="block text-sm font-medium text-gray-700">Permisos</label>
               <select
-                id="role"
-                value={role}
-                onChange={(e) => setRole(e.target.value as UserRole)}
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-brand-secondary focus:border-brand-secondary sm:text-sm"
+                id="permission"
+                value={selectedPermission}
+                onChange={(e) => setSelectedPermission(e.target.value)}
+                className="mt-1 block w-full px-3 py-2 border border-gray-500 rounded-md shadow-sm focus:outline-none focus:ring-brand-secondary focus:border-brand-secondary sm:text-sm bg-gray-600 text-white"
               >
-                {Object.values(UserRole).map(r => <option key={r} value={r}>{r}</option>)}
+                {permissionOptions.map(opt => (
+                    <option key={opt} value={opt} className="bg-gray-600 text-white">{opt}</option>
+                ))}
               </select>
             </div>
             <div>
@@ -108,7 +127,7 @@ const UserModal: React.FC<UserModalProps> = ({ onClose, onSave, userToEdit }) =>
                 id="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-brand-secondary focus:border-brand-secondary sm:text-sm"
+                className="mt-1 block w-full px-3 py-2 border border-gray-500 rounded-md shadow-sm focus:outline-none focus:ring-brand-secondary focus:border-brand-secondary sm:text-sm bg-gray-600 text-white placeholder-gray-300"
                 placeholder={isEditing ? 'Dejar en blanco para no cambiar' : 'Mínimo 6 caracteres'}
                 required={!isEditing}
               />
@@ -120,7 +139,7 @@ const UserModal: React.FC<UserModalProps> = ({ onClose, onSave, userToEdit }) =>
                 id="confirmPassword"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-brand-secondary focus:border-brand-secondary sm:text-sm"
+                className="mt-1 block w-full px-3 py-2 border border-gray-500 rounded-md shadow-sm focus:outline-none focus:ring-brand-secondary focus:border-brand-secondary sm:text-sm bg-gray-600 text-white placeholder-gray-300"
                 required={!isEditing || password.length > 0}
               />
             </div>

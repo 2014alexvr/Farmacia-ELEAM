@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useEffect } from 'react';
 import { ResidentMedication, Provenance, MedicationSchedule } from '../../types';
 import CloseIcon from '../icons/CloseIcon';
@@ -8,7 +9,7 @@ interface AddMedicationModalProps {
   medicationToEdit?: ResidentMedication;
 }
 
-const DOSE_UNITS = ['Mg', 'Gr', 'Mg/ml', 'NPH', '%', ''];
+const DOSE_UNITS = ['Mcg', 'Mg', 'Gr', 'Mg/ml', 'NPH', '%', ''];
 const POSOLOGY_UNITS = ['Comp', 'Gotas', 'Puff', 'UI', 'CC', ''];
 const PROVENANCE_OPTIONS: Provenance[] = ['Cesfam', 'Salud Mental', 'Hospital', 'CAE Quilpué', 'CAE Viña', 'Familia', 'Compras', 'Donación'];
 

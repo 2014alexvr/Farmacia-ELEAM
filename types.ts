@@ -90,3 +90,11 @@ export interface LowStockItem {
   currentStock: string;
   stockDays: number;
 }
+
+export interface MedicalReport {
+  id: string;
+  residentId: number;
+  fileName: string;
+  fileData: string; // Base64 string
+  uploadDate: string;
+}

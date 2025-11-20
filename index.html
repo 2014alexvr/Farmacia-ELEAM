@@ -3,28 +3,53 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>FARMACIA ELEAM</title>
+    <title>FARMACIA ELEAM EL NAZARENO</title>
+    
+    <!-- Google Fonts: Plus Jakarta Sans for a modern, geometric look -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
       tailwind.config = {
         theme: {
           extend: {
+            fontFamily: {
+              sans: ['"Plus Jakarta Sans"', 'sans-serif'],
+            },
             colors: {
-              'brand-primary': '#005A9C',
-              'brand-secondary': '#4A90E2',
-              'brand-light': '#EAF2FA',
-              'brand-dark': '#003366',
-              'accent-green': '#34D399',
-              'accent-red': '#EF4444',
+              // Modern Teal/Cyan Palette
+              'brand-primary': '#0d9488',   // Teal-600: Modern, clean, professional
+              'brand-secondary': '#14b8a6', // Teal-500: Lighter accent
+              'brand-light': '#f0fdfa',     // Teal-50: Very light background tint
+              'brand-dark': '#134e4a',      // Teal-900: Deep contrast for text/sidebars
+              'surface-white': '#ffffff',
+              'surface-ground': '#f8fafc',  // Slate-50: Main app background
+              
+              // Status Colors
+              'accent-green': '#10b981',    // Emerald
+              'accent-red': '#ef4444',      // Red
+              'accent-yellow': '#f59e0b',   // Amber
+              'accent-blue': '#3b82f6',     // Blue
+            },
+            boxShadow: {
+              'soft': '0 4px 20px -2px rgba(0, 0, 0, 0.05)',
+              'glow': '0 0 15px rgba(13, 148, 136, 0.3)',
             },
             animation: {
-              'fade-in-down': 'fadeInDown 0.3s ease-out',
+              'fade-in-down': 'fadeInDown 0.4s cubic-bezier(0.16, 1, 0.3, 1)',
+              'scale-in': 'scaleIn 0.2s ease-out',
             },
             keyframes: {
               fadeInDown: {
-                '0%': { opacity: '0', transform: 'translateY(-20px)' },
+                '0%': { opacity: '0', transform: 'translateY(-10px)' },
                 '100%': { opacity: '1', transform: 'translateY(0)' },
               },
+              scaleIn: {
+                '0%': { transform: 'scale(0.95)', opacity: '0' },
+                '100%': { transform: 'scale(1)', opacity: '1' },
+              }
             }
           }
         }
@@ -36,12 +61,14 @@
     "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
     "recharts": "https://aistudiocdn.com/recharts@^3.4.1",
     "react/": "https://aistudiocdn.com/react@^19.2.0/",
-    "react": "https://aistudiocdn.com/react@^19.2.0"
+    "react": "https://aistudiocdn.com/react@^19.2.0",
+    "jspdf": "https://esm.sh/jspdf@2.5.1",
+    "jspdf-autotable": "https://esm.sh/jspdf-autotable@3.8.1"
   }
 }
 </script>
 </head>
-  <body class="bg-brand-light">
+  <body class="bg-surface-ground text-slate-800 antialiased">
     <div id="root"></div>
     <script type="module" src="/index.tsx"></script>
   </body>

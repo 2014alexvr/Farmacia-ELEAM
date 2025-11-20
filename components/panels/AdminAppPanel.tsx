@@ -58,6 +58,7 @@ const AdminAppPanel: React.FC<AdminAppPanelProps> = ({ currentUser, users, onSav
             <thead className="bg-gray-50">
               <tr>
                 <th className="p-4 font-semibold text-gray-600">Nombre</th>
+                <th className="p-4 font-semibold text-gray-600">Permisos</th>
                 <th className="p-4 font-semibold text-gray-600 text-center">Acciones</th>
               </tr>
             </thead>
@@ -65,6 +66,9 @@ const AdminAppPanel: React.FC<AdminAppPanelProps> = ({ currentUser, users, onSav
               {users.map((user, index) => (
                 <tr key={user.id} className={`border-t ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}>
                   <td className="p-4 font-medium text-black">{user.name}</td>
+                  <td className="p-4 text-gray-700">
+                    {user.permissions === 'Solo Lectura' ? 'Sólo Lectura' : user.permissions}
+                  </td>
                   <td className="p-4 text-center space-x-4">
                     <button onClick={() => handleOpenModalForEdit(user)} className="font-semibold text-brand-secondary hover:underline">Modificar</button>
                     <button 
