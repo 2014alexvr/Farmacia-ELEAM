@@ -121,7 +121,11 @@ const GeneralInventoryPanel: React.FC<GeneralInventoryPanelProps> = ({ residentM
                     <td className="p-4 font-semibold text-slate-800">{item.name}</td>
                     <td className="p-4 text-slate-600 font-medium">{item.dose}</td>
                     <td className="p-4 text-center">
-                        <span className="font-bold text-brand-primary text-lg bg-brand-light px-3 py-1 rounded-lg border border-brand-secondary/20 shadow-sm inline-block min-w-[3rem]">
+                        <span className={`font-bold text-lg px-3 py-1 rounded-lg border shadow-sm inline-block min-w-[3rem] transition-colors ${
+                            item.totalStock < 7 
+                                ? 'bg-red-100 text-red-600 border-red-200' 
+                                : 'bg-brand-light text-brand-primary border-brand-secondary/20'
+                        }`}>
                             {item.totalStock}
                         </span>
                     </td>

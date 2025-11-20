@@ -1,6 +1,5 @@
-
 import React, { useState, useRef } from 'react';
-import { Resident, MedicalReport } from '../../types';
+import { User, Resident, MedicalReport } from '../../types';
 import CloseIcon from '../icons/CloseIcon';
 import UploadIcon from '../icons/UploadIcon';
 import DocumentTextIcon from '../icons/DocumentTextIcon';
@@ -8,6 +7,7 @@ import TrashIcon from '../icons/TrashIcon';
 import EyeIcon from '../icons/EyeIcon';
 
 interface MedicalReportModalProps {
+  user: User;
   resident: Resident;
   reports: MedicalReport[];
   onClose: () => void;
@@ -15,23 +15,26 @@ interface MedicalReportModalProps {
   onDeleteReport: (reportId: string) => void;
 }
 
-const MedicalReportModal: React.FC<MedicalReportModalProps> = ({ resident, reports, onClose, onSaveReport, onDeleteReport }) => {
+const MedicalReportModal: React.FC<MedicalReportModalProps> = ({ user, resident, reports, onClose, onSaveReport, onDeleteReport }) => {
   const [isDragging, setIsDragging] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  const isReadOnly = user.permissions === 'Solo Lectura';
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
-    setIsDragging(true);
+    if (!isReadOnly) setIsDragging(true);
   };
 
   const handleDragLeave = () => {
-    setIsDragging(false);
+    if (!isReadOnly) setIsDragging(false);
   };
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
+    if (isReadOnly) return;
     setIsDragging(false);
     const files = e.dataTransfer.files;
     if (files.length > 0 && files[0].type === 'application/pdf') {
@@ -52,7 +55,6 @@ const MedicalReportModal: React.FC<MedicalReportModalProps> = ({ resident, repor
 
     setUploading(true);
     
-    // Simulate reading file and converting to base64
     const reader = new FileReader();
     reader.readAsDataURL(selectedFile);
     reader.onload = () => {
@@ -70,7 +72,7 @@ const MedicalReportModal: React.FC<MedicalReportModalProps> = ({ resident, repor
         onSaveReport(newReport);
         setUploading(false);
         setSelectedFile(null);
-      }, 1000); // Simulate network delay
+      }, 1000);
     };
   };
 
@@ -85,7 +87,6 @@ const MedicalReportModal: React.FC<MedicalReportModalProps> = ({ resident, repor
 
   const handleView = (report: MedicalReport) => {
     try {
-      // Convert Base64 to Blob to avoid browser limitations with large Data URIs
       const base64Data = report.fileData.split(',')[1];
       const byteCharacters = atob(base64Data);
       const byteNumbers = new Array(byteCharacters.length);
@@ -96,7 +97,6 @@ const MedicalReportModal: React.FC<MedicalReportModalProps> = ({ resident, repor
       const blob = new Blob([byteArray], { type: 'application/pdf' });
       const url = URL.createObjectURL(blob);
       
-      // Open the Blob URL in a new tab
       window.open(url, '_blank');
       
     } catch (error) {
@@ -107,7 +107,6 @@ const MedicalReportModal: React.FC<MedicalReportModalProps> = ({ resident, repor
 
   return (
     <>
-      {/* Main Modal */}
       <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-center p-4">
         <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl relative animate-fade-in-down flex flex-col max-h-[90vh]">
           <div className="flex justify-between items-center p-6 border-b">
@@ -126,55 +125,60 @@ const MedicalReportModal: React.FC<MedicalReportModalProps> = ({ resident, repor
           </div>
 
           <div className="p-6 overflow-y-auto flex-1">
-            {/* Upload Area */}
-            <div 
-              className={`border-2 border-dashed rounded-xl p-8 text-center transition-colors cursor-pointer mb-8 ${
-                isDragging ? 'border-brand-secondary bg-blue-50' : 'border-gray-300 hover:border-brand-secondary hover:bg-gray-50'
-              }`}
-              onDragOver={handleDragOver}
-              onDragLeave={handleDragLeave}
-              onDrop={handleDrop}
-              onClick={() => fileInputRef.current?.click()}
-            >
-              <input 
-                type="file" 
-                accept="application/pdf" 
-                className="hidden" 
-                ref={fileInputRef} 
-                onChange={handleFileSelect} 
-              />
-              
-              {selectedFile ? (
-                <div className="flex flex-col items-center">
-                  <DocumentTextIcon className="w-12 h-12 text-brand-primary mb-2" />
-                  <p className="text-lg font-semibold text-gray-700">{selectedFile.name}</p>
-                  <p className="text-sm text-gray-500 mb-4">{(selectedFile.size / 1024).toFixed(2)} KB</p>
-                  <div className="flex gap-3">
-                      <button 
-                          onClick={(e) => { e.stopPropagation(); setSelectedFile(null); }}
-                          className="px-4 py-2 text-sm text-red-600 bg-red-50 rounded-md hover:bg-red-100"
-                      >
-                          Cancelar
-                      </button>
-                      <button 
-                          onClick={(e) => { e.stopPropagation(); handleUpload(); }}
-                          disabled={uploading}
-                          className="px-4 py-2 text-sm text-white bg-brand-primary rounded-md hover:bg-brand-dark disabled:bg-gray-400"
-                      >
-                          {uploading ? 'Subiendo...' : 'Confirmar Subida'}
-                      </button>
-                  </div>
+            {isReadOnly ? (
+                <div className="border-2 border-dashed border-red-200 rounded-xl p-8 text-center mb-8 bg-red-50">
+                    <p className="font-bold text-red-600">RESTRINGIDO SUBIR ARCHIVO PARA USUARIOS CON PERMISO "SÓLO LECTURA"</p>
                 </div>
-              ) : (
-                <div className="flex flex-col items-center pointer-events-none">
-                  <UploadIcon className="w-12 h-12 text-gray-400 mb-3" />
-                  <p className="text-lg font-medium text-gray-600">Arrastre su archivo PDF aquí</p>
-                  <p className="text-sm text-gray-400 mt-1">o haga clic para seleccionar desde su dispositivo</p>
+            ) : (
+                <div 
+                  className={`border-2 border-dashed rounded-xl p-8 text-center transition-colors cursor-pointer mb-8 ${
+                    isDragging ? 'border-brand-secondary bg-blue-50' : 'border-gray-300 hover:border-brand-secondary hover:bg-gray-50'
+                  }`}
+                  onDragOver={handleDragOver}
+                  onDragLeave={handleDragLeave}
+                  onDrop={handleDrop}
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  <input 
+                    type="file" 
+                    accept="application/pdf" 
+                    className="hidden" 
+                    ref={fileInputRef} 
+                    onChange={handleFileSelect} 
+                  />
+                  
+                  {selectedFile ? (
+                    <div className="flex flex-col items-center">
+                      <DocumentTextIcon className="w-12 h-12 text-brand-primary mb-2" />
+                      <p className="text-lg font-semibold text-gray-700">{selectedFile.name}</p>
+                      <p className="text-sm text-gray-500 mb-4">{(selectedFile.size / 1024).toFixed(2)} KB</p>
+                      <div className="flex gap-3">
+                          <button 
+                              onClick={(e) => { e.stopPropagation(); setSelectedFile(null); }}
+                              className="px-4 py-2 text-sm text-red-600 bg-red-50 rounded-md hover:bg-red-100"
+                          >
+                              Cancelar
+                          </button>
+                          <button 
+                              onClick={(e) => { e.stopPropagation(); handleUpload(); }}
+                              disabled={uploading}
+                              className="px-4 py-2 text-sm text-white bg-brand-primary rounded-md hover:bg-brand-dark disabled:bg-gray-400"
+                          >
+                              {uploading ? 'Subiendo...' : 'Confirmar Subida'}
+                          </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center pointer-events-none">
+                      <UploadIcon className="w-12 h-12 text-gray-400 mb-3" />
+                      <p className="text-lg font-medium text-gray-600">Arrastre su archivo PDF aquí</p>
+                      <p className="text-sm text-gray-400 mt-1">o haga clic para seleccionar desde su dispositivo</p>
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
+            )}
 
-            {/* List of Reports */}
+
             <h3 className="text-lg font-bold text-gray-800 mb-4">Historial de Informes</h3>
             {reports.length > 0 ? (
               <div className="space-y-3">
@@ -205,13 +209,15 @@ const MedicalReportModal: React.FC<MedicalReportModalProps> = ({ resident, repor
                       >
                           Descargar
                       </button>
-                      <button 
-                          onClick={() => onDeleteReport(report.id)}
-                          className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-md transition-colors"
-                          title="Eliminar informe"
-                      >
-                          <TrashIcon className="w-5 h-5" />
-                      </button>
+                      {!isReadOnly && (
+                        <button 
+                            onClick={() => onDeleteReport(report.id)}
+                            className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-md transition-colors"
+                            title="Eliminar informe"
+                        >
+                            <TrashIcon className="w-5 h-5" />
+                        </button>
+                      )}
                     </div>
                   </div>
                 ))}

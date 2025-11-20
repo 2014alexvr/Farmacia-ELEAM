@@ -1,20 +1,18 @@
-
 import React, { useState, useCallback, useEffect } from 'react';
-import LoginScreen from './components/LoginScreen';
+import LoginScreenModern from './components/LoginScreenModern'; // NEW IMPORT
 import MainLayout from './components/MainLayout';
 import { User, ManagedUser } from './types';
 import { MOCK_USERS } from './constants';
 
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
-  const [appVersion, setAppVersion] = useState(5); // Versión incrementada para forzar recarga
+  const [appVersion, setAppVersion] = useState(1000); // Major version jump
   
   const [managedUsers, setManagedUsers] = useState<ManagedUser[]>(() => {
     try {
       const savedUsers = localStorage.getItem('farmaciaEleam_users');
       return savedUsers ? JSON.parse(savedUsers) : MOCK_USERS;
     } catch (error) {
-      console.error("Error al cargar usuarios desde localStorage", error);
       return MOCK_USERS;
     }
   });
@@ -23,7 +21,7 @@ const App: React.FC = () => {
     try {
       localStorage.setItem('farmaciaEleam_users', JSON.stringify(managedUsers));
     } catch (error) {
-      console.error("Error al guardar usuarios en localStorage", error);
+      console.error(error);
     }
   }, [managedUsers]);
 
@@ -47,11 +45,11 @@ const App: React.FC = () => {
   }, []);
 
   if (!user) {
-    return <LoginScreen key={`login-refresh-${appVersion}`} users={managedUsers} onLogin={handleLogin} />;
+    return <LoginScreenModern key={`login-v3-${appVersion}`} users={managedUsers} onLogin={handleLogin} />;
   }
 
   return <MainLayout 
-           key={`layout-refresh-${appVersion}`}
+           key={`layout-v3-${appVersion}`}
            user={user} 
            onLogout={handleLogout} 
            users={managedUsers} 

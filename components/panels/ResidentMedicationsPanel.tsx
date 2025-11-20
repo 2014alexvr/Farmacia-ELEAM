@@ -1,8 +1,7 @@
-
 import React, { useState } from 'react';
 import { Resident, ResidentMedication, User, MedicalReport } from '../../types';
 import ArrowLeftIcon from '../icons/ArrowLeftIcon';
-import AddMedicationModal from './AddMedicationModal'; 
+import AddMedicationModalModern from './AddMedicationModalModern'; // NEW IMPORT
 import ConfirmDeleteModal from './ConfirmDeleteModal';
 import DocumentTextIcon from '../icons/DocumentTextIcon';
 import MedicalReportModal from './MedicalReportModal';
@@ -82,16 +81,14 @@ const ResidentMedicationsPanel: React.FC<ResidentMedicationsPanelProps> = ({
   const handleExportPDF = () => {
     const doc = new jsPDF();
     
-    // Encabezado
     doc.setFontSize(18);
-    doc.setTextColor(13, 148, 136); // brand-primary Teal-600
+    doc.setTextColor(13, 148, 136);
     doc.text("FARMACIA ELEAM EL NAZARENO", 14, 22);
     
     doc.setFontSize(12);
     doc.setTextColor(100);
     doc.text("Listado de Medicamentos", 14, 30);
 
-    // Información del Residente
     doc.setFontSize(10);
     doc.setTextColor(0);
     doc.text(`Residente: ${resident.name}`, 14, 42);
@@ -100,20 +97,13 @@ const ResidentMedicationsPanel: React.FC<ResidentMedicationsPanelProps> = ({
     doc.text(`Edad: ${age} años`, 140, 42);
     doc.text(`Fecha de Emisión: ${new Date().toLocaleDateString('es-CL')}`, 140, 47);
     
-    const tableColumn = ["Medicamento", "Dosis", "Horarios", "Posología", "Gasto", "Stock", "Días", "Procedencia", "Entrega"];
+    const tableColumn = ["Medicamento", "Dosis", "Horarios", "Posología", "Gasto Diario", "Stock", "Días con Stock", "Procedencia", "Fecha de Entrega"];
     const tableRows = medications.map(med => {
       const dailyExpense = med.schedules.reduce((sum, s) => sum + (Number(s.quantity) || 0), 0);
       const stockDays = dailyExpense > 0 ? Math.floor(med.stock / dailyExpense) : 'N/A';
       
-      const schedulesText = med.schedules
-        .filter(s => s.time && s.quantity)
-        .map(s => s.time)
-        .join('\n');
-        
-      const posologyText = med.schedules
-        .filter(s => s.time && s.quantity)
-        .map(s => `${s.quantity} ${s.unit}`)
-        .join('\n');
+      const schedulesText = med.schedules.filter(s => s.time && s.quantity).map(s => s.time).join('\n');
+      const posologyText = med.schedules.filter(s => s.time && s.quantity).map(s => `${s.quantity} ${s.unit}`).join('\n');
 
       return [
         med.medicationName,
@@ -135,9 +125,7 @@ const ResidentMedicationsPanel: React.FC<ResidentMedicationsPanelProps> = ({
       theme: 'grid',
       headStyles: { fillColor: [13, 148, 136] },
       styles: { fontSize: 8, cellPadding: 2, valign: 'top' },
-      columnStyles: {
-          0: { cellWidth: 30 }, 
-      }
+      columnStyles: { 0: { cellWidth: 30 } }
     });
 
     doc.save(`Medicamentos_${resident.name.replace(/\s+/g, '_')}.pdf`);
@@ -158,19 +146,11 @@ const ResidentMedicationsPanel: React.FC<ResidentMedicationsPanelProps> = ({
             <p className="text-slate-500 font-medium mt-1">{resident.name}</p>
           </div>
           <div className="flex flex-wrap gap-3 print:hidden">
-              <button 
-                type="button"
-                onClick={handleExportPDF}
-                className="flex items-center px-5 py-2.5 bg-white border border-slate-200 text-slate-700 font-semibold rounded-xl hover:bg-slate-50 hover:text-brand-primary hover:border-brand-primary/30 transition-all shadow-sm active:scale-95"
-              >
+              <button onClick={handleExportPDF} className="flex items-center px-5 py-2.5 bg-white border border-slate-200 text-slate-700 font-semibold rounded-xl hover:bg-slate-50 hover:text-brand-primary hover:border-brand-primary/30 transition-all shadow-sm active:scale-95">
                   <PrinterIcon className="w-5 h-5 mr-2" />
                   Exportar PDF
               </button>
-              <button 
-                type="button"
-                onClick={() => setIsReportModalOpen(true)}
-                className="flex items-center px-5 py-2.5 bg-brand-secondary text-white font-semibold rounded-xl hover:bg-teal-400 transition-all shadow-lg shadow-teal-500/20 active:scale-95"
-              >
+              <button onClick={() => setIsReportModalOpen(true)} className="flex items-center px-5 py-2.5 bg-brand-secondary text-white font-semibold rounded-xl hover:bg-teal-400 transition-all shadow-lg shadow-teal-500/20 active:scale-95">
                   <DocumentTextIcon className="w-5 h-5 mr-2" />
                   Informe Médico
               </button>
@@ -216,17 +196,17 @@ const ResidentMedicationsPanel: React.FC<ResidentMedicationsPanelProps> = ({
                 <th className="pb-4 font-bold text-xs text-slate-400 uppercase tracking-wider">Dosis</th>
                 <th className="pb-4 font-bold text-xs text-slate-400 uppercase tracking-wider">Horarios</th>
                 <th className="pb-4 font-bold text-xs text-slate-400 uppercase tracking-wider">Posología</th>
-                <th className="pb-4 font-bold text-xs text-slate-400 uppercase tracking-wider text-center">Gasto</th>
+                <th className="pb-4 font-bold text-xs text-slate-400 uppercase tracking-wider text-center">Gasto Diario</th>
                 <th className="pb-4 font-bold text-xs text-slate-400 uppercase tracking-wider text-center">Stock</th>
-                <th className="pb-4 font-bold text-xs text-slate-400 uppercase tracking-wider text-center">Días</th>
+                <th className="pb-4 font-bold text-xs text-slate-400 uppercase tracking-wider text-center">Días con Stock</th>
                 <th className="pb-4 font-bold text-xs text-slate-400 uppercase tracking-wider">Procedencia</th>
-                <th className="pb-4 font-bold text-xs text-slate-400 uppercase tracking-wider">Entrega</th>
+                <th className="pb-4 font-bold text-xs text-slate-400 uppercase tracking-wider">Fecha de Entrega</th>
                 <th className="pb-4 font-bold text-xs text-slate-400 uppercase tracking-wider text-center print:hidden">Acciones</th>
               </tr>
             </thead>
             <tbody className="text-sm">
               {medications.length > 0 ? (
-                medications.map((med, index) => {
+                medications.map((med) => {
                   const dailyExpense = med.schedules.reduce((sum, s) => sum + s.quantity, 0);
                   const stockDays = dailyExpense > 0 ? Math.floor(med.stock / dailyExpense) : 'N/A';
                   const isLowStock = typeof stockDays === 'number' && stockDays <= 6;
@@ -234,37 +214,26 @@ const ResidentMedicationsPanel: React.FC<ResidentMedicationsPanelProps> = ({
                   return (
                     <tr key={med.id} className={`group border-b border-slate-50 hover:bg-slate-50/80 transition-colors ${isLowStock ? 'bg-red-50/30' : ''}`}>
                       <td className="p-4 font-semibold text-slate-800 align-top rounded-l-xl">
-                        <button
-                          onClick={() => handleOpenModalForEdit(med)}
-                          disabled={!canModify}
-                          className={`text-left ${canModify ? 'hover:text-brand-primary transition-colors cursor-pointer' : 'cursor-default'}`}
-                        >
+                        <button onClick={() => handleOpenModalForEdit(med)} disabled={!canModify} className={`text-left ${canModify ? 'hover:text-brand-primary transition-colors cursor-pointer' : 'cursor-default'}`}>
                           {med.medicationName}
                         </button>
                       </td>
                       <td className="p-4 text-slate-600 align-top font-medium">{`${med.doseValue} ${med.doseUnit}`}</td>
                       <td className="p-4 text-slate-600 align-top font-mono text-xs">
-                        {med.schedules.map((s, i) => (
-                          <div key={i} className="h-5 mb-1">{s.time}</div>
-                        ))}
+                        {med.schedules.map((s, i) => <div key={i} className="h-5 mb-1">{s.time}</div>)}
                       </td>
                       <td className="p-4 text-slate-600 align-top">
-                         {med.schedules.map((s, i) => (
-                          <div key={i} className="h-5 mb-1">{`${s.quantity} ${s.unit}`}</div>
-                        ))}
+                         {med.schedules.map((s, i) => <div key={i} className="h-5 mb-1">{`${s.quantity} ${s.unit}`}</div>)}
                       </td>
                       <td className="p-4 text-center text-slate-600 align-top">{dailyExpense}</td>
                       <td className="p-4 text-center text-slate-800 font-bold align-top">{`${med.stock} ${med.stockUnit}`}</td>
                       <td className="p-4 text-center align-top">
-                          <span className={`font-bold ${isLowStock ? 'text-red-500' : 'text-emerald-600'}`}>
-                              {stockDays}
-                          </span>
+                          <span className={`font-bold ${isLowStock ? 'text-red-500' : 'text-emerald-600'}`}>{stockDays}</span>
                       </td>
                       <td className="p-4 align-top">
                           <span className={`px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide rounded-full ${
                               med.provenance === 'Cesfam' ? 'bg-blue-50 text-blue-600 border border-blue-100' :
                               med.provenance === 'Compras' ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' :
-                              med.provenance === 'Donación' ? 'bg-amber-50 text-amber-600 border border-amber-100' :
                               'bg-slate-100 text-slate-600'
                           }`}>
                               {med.provenance}
@@ -275,12 +244,7 @@ const ResidentMedicationsPanel: React.FC<ResidentMedicationsPanelProps> = ({
                       </td>
                       <td className="p-4 text-center align-top print:hidden rounded-r-xl">
                         {canDelete && (
-                          <button 
-                            onClick={() => setMedicationToDelete(med)}
-                            className="text-xs font-bold text-red-400 hover:text-red-600 hover:bg-red-50 px-3 py-1.5 rounded-lg transition-all opacity-0 group-hover:opacity-100"
-                          >
-                            Eliminar
-                          </button>
+                          <button onClick={() => setMedicationToDelete(med)} className="text-xs font-bold text-red-400 hover:text-red-600 hover:bg-red-50 px-3 py-1.5 rounded-lg transition-all opacity-0 group-hover:opacity-100">Eliminar</button>
                         )}
                       </td>
                     </tr>
@@ -288,9 +252,7 @@ const ResidentMedicationsPanel: React.FC<ResidentMedicationsPanelProps> = ({
                 })
               ) : (
                 <tr>
-                  <td colSpan={10} className="text-center p-12 text-slate-400 italic">
-                    Este residente no tiene medicamentos registrados.
-                  </td>
+                  <td colSpan={10} className="text-center p-12 text-slate-400 italic">Este residente no tiene medicamentos registrados.</td>
                 </tr>
               )}
             </tbody>
@@ -298,7 +260,7 @@ const ResidentMedicationsPanel: React.FC<ResidentMedicationsPanelProps> = ({
         </div>
       </div>
         {isModalOpen && (
-            <AddMedicationModal 
+            <AddMedicationModalModern 
                 onClose={() => { setIsModalOpen(false); setMedicationToEdit(null); }}
                 onSave={handleSave}
                 medicationToEdit={medicationToEdit || undefined}
@@ -313,6 +275,7 @@ const ResidentMedicationsPanel: React.FC<ResidentMedicationsPanelProps> = ({
         )}
         {isReportModalOpen && (
           <MedicalReportModal 
+            user={user}
             resident={resident}
             reports={medicalReports}
             onClose={() => setIsReportModalOpen(false)}
