@@ -13,7 +13,7 @@ const DOSE_UNITS = ['Mcg', 'Mg', 'Gr', 'Mg/ml', 'NPH', '%', ''];
 const POSOLOGY_UNITS = ['Comp', 'Gotas', 'Puff', 'UI', 'CC', ''];
 const PROVENANCE_OPTIONS: Provenance[] = ['Cesfam', 'Salud Mental', 'Hospital', 'CAE Quilpué', 'CAE Viña', 'Familia', 'Compras', 'Donación'];
 
-const AddMedicationModal: React.FC<AddMedicationModalProps> = ({ onClose, onSave, medicationToEdit }) => {
+const AddMedicationModalV2: React.FC<AddMedicationModalProps> = ({ onClose, onSave, medicationToEdit }) => {
   const [medicationName, setMedicationName] = useState('');
   const [doseValue, setDoseValue] = useState('');
   const [doseUnit, setDoseUnit] = useState('Mg');
@@ -98,8 +98,7 @@ const AddMedicationModal: React.FC<AddMedicationModalProps> = ({ onClose, onSave
     }
   };
 
-  // --- Estilos de Diseño ---
-  const sectionTitle = "text-xs font-extrabold text-slate-400 uppercase tracking-widest mb-3 ml-1 flex items-center gap-2";
+  // --- Estilos de Diseño Moderno ---
   const labelStyle = "block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5 ml-1";
   
   // Inputs Dark Modern
@@ -113,7 +112,7 @@ const AddMedicationModal: React.FC<AddMedicationModalProps> = ({ onClose, onSave
       <div className="bg-white rounded-[40px] shadow-2xl w-full max-w-4xl relative animate-scale-in overflow-hidden border border-white/20 ring-1 ring-black/10 flex flex-col max-h-[95vh]">
         
         {/* Header Decorativo */}
-        <div className="h-3 bg-gradient-to-r from-brand-primary via-brand-secondary to-brand-primary w-full shrink-0" />
+        <div className="h-4 bg-gradient-to-r from-brand-primary via-brand-secondary to-brand-primary w-full shrink-0" />
 
         {/* Título y Cierre */}
         <div className="flex justify-between items-start px-8 pt-8 pb-2 shrink-0 bg-white z-10">
@@ -125,7 +124,7 @@ const AddMedicationModal: React.FC<AddMedicationModalProps> = ({ onClose, onSave
                 <h2 className="text-3xl font-extrabold text-slate-800 tracking-tight">
                 {isEditing ? 'Editar Tratamiento' : 'Nuevo Tratamiento'}
                 </h2>
-                <p className="text-sm text-slate-500 font-medium">Complete los detalles del fármaco y su administración.</p>
+                <p className="text-sm text-slate-500 font-medium mt-1">Complete los detalles del fármaco y su administración.</p>
             </div>
           </div>
           <button 
@@ -173,9 +172,9 @@ const AddMedicationModal: React.FC<AddMedicationModalProps> = ({ onClose, onSave
             </div>
 
             {/* SECCIÓN 2: ESQUEMA HORARIO */}
-            <div className="bg-slate-50 p-6 rounded-3xl border border-slate-100 shadow-inner">
-                <h3 className={sectionTitle}>Esquema de Administración</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
+            <div className="bg-slate-50 p-6 rounded-[30px] border border-slate-100 shadow-inner">
+                <h3 className="text-xs font-extrabold text-slate-400 uppercase tracking-widest mb-4 ml-1 flex items-center gap-2">Esquema de Administración</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {schedules.map((s, index) => (
                         <div key={index} className="flex items-center gap-3 bg-white p-3 rounded-2xl shadow-sm border border-slate-200/60 hover:border-brand-secondary/30 transition-colors">
                              <div className="flex flex-col w-1/3">
@@ -184,7 +183,7 @@ const AddMedicationModal: React.FC<AddMedicationModalProps> = ({ onClose, onSave
                                     type="time" 
                                     value={s.time} 
                                     onChange={e => handleScheduleChange(index, 'time', e.target.value)} 
-                                    className="bg-slate-100 border-0 text-slate-800 text-sm font-bold rounded-lg p-2 text-center focus:ring-2 focus:ring-brand-secondary"
+                                    className="bg-slate-100 border-0 text-slate-800 text-sm font-bold rounded-xl p-2 text-center focus:ring-2 focus:ring-brand-secondary"
                                     style={{ colorScheme: 'light' }} 
                                 />
                              </div>
@@ -212,7 +211,7 @@ const AddMedicationModal: React.FC<AddMedicationModalProps> = ({ onClose, onSave
                 </div>
             </div>
 
-            {/* SECCIÓN 3: GESTIÓN DE INVENTARIO */}
+            {/* SECCIÓN 3: GESTIÓN DE INVENTARIO (KPI Cards) */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 
                 {/* Stock Input */}
@@ -233,27 +232,27 @@ const AddMedicationModal: React.FC<AddMedicationModalProps> = ({ onClose, onSave
                     </div>
                 </div>
 
-                {/* KPI Cards (Calculated) */}
+                {/* KPI Cards (Calculated Data) */}
                 <div className="md:col-span-2 grid grid-cols-2 gap-4">
-                    <div className="bg-slate-800 p-4 rounded-2xl border border-slate-700 flex flex-col justify-center relative overflow-hidden group shadow-lg">
+                    <div className="bg-slate-800 p-4 rounded-3xl border border-slate-700 flex flex-col justify-center relative overflow-hidden group shadow-lg">
                         <div className="absolute right-0 top-0 p-3 opacity-10 group-hover:opacity-20 transition-opacity">
                             <PillIcon className="w-12 h-12 text-white" />
                         </div>
                         <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Gasto Diario Total</p>
                         <div className="flex items-baseline gap-1">
-                            <span className="text-2xl font-bold text-white">{dailyExpense > 0 ? dailyExpense : '-'}</span>
+                            <span className="text-3xl font-extrabold text-white tracking-tight">{dailyExpense > 0 ? dailyExpense : '-'}</span>
                             <span className="text-xs text-slate-400 font-medium">{dailyExpense > 0 ? (schedules.find(s=>Number(s.quantity) > 0)?.unit || 'Unid') : ''}</span>
                         </div>
                     </div>
 
-                    <div className={`p-4 rounded-2xl border flex flex-col justify-center relative overflow-hidden transition-all duration-300 shadow-lg ${
+                    <div className={`p-4 rounded-3xl border flex flex-col justify-center relative overflow-hidden transition-all duration-300 shadow-lg ${
                         stockDays <= 6 && stockDays > 0 ? 'bg-red-500 border-red-600 shadow-red-500/30' : 
                         stockDays > 6 ? 'bg-emerald-500 border-emerald-600 shadow-emerald-500/30' : 
                         'bg-slate-100 border-slate-200'
                     }`}>
                         <p className={`text-[10px] font-bold uppercase mb-1 ${stockDays > 0 ? 'text-white/80' : 'text-slate-400'}`}>Cobertura Estimada</p>
                         <div className="flex items-baseline gap-1">
-                            <span className={`text-2xl font-bold ${stockDays > 0 ? 'text-white' : 'text-slate-400'}`}>
+                            <span className={`text-3xl font-extrabold tracking-tight ${stockDays > 0 ? 'text-white' : 'text-slate-400'}`}>
                                 {stockDays > 0 ? stockDays : '-'}
                             </span>
                             <span className={`text-xs font-medium ${stockDays > 0 ? 'text-white/80' : 'text-slate-400'}`}>Días</span>
@@ -330,4 +329,4 @@ const AddMedicationModal: React.FC<AddMedicationModalProps> = ({ onClose, onSave
   );
 };
 
-export default AddMedicationModal;
+export default AddMedicationModalV2;

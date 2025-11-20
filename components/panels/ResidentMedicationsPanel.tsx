@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Resident, ResidentMedication, User, MedicalReport } from '../../types';
 import ArrowLeftIcon from '../icons/ArrowLeftIcon';
-import AddMedicationModal from './AddMedicationModal';
+import AddMedicationModal from './AddMedicationModal'; 
 import ConfirmDeleteModal from './ConfirmDeleteModal';
 import DocumentTextIcon from '../icons/DocumentTextIcon';
 import MedicalReportModal from './MedicalReportModal';

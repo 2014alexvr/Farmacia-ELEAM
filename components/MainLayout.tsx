@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { User, Panel, Resident, ResidentMedication, ManagedUser, MedicalReport } from '../types';
 import { ROLE_PANELS, MOCK_RESIDENTS, MOCK_RESIDENT_MEDICATIONS } from '../constants';
@@ -16,6 +17,7 @@ import MenuIcon from './icons/MenuIcon';
 import AdminAppPanel from './panels/AdminAppPanel';
 import GeneralInventoryPanel from './panels/GeneralInventoryPanel';
 
+// MainLayout manages the overall application structure
 interface MainLayoutProps {
   user: User;
   onLogout: () => void;
