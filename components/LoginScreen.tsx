@@ -3,6 +3,7 @@ import React, { useState, useMemo } from 'react';
 import { UserRole, ManagedUser } from '../types';
 import PillIcon from './icons/PillIcon';
 import CloseIcon from './icons/CloseIcon';
+import ArrowRightIcon from './icons/ArrowRightIcon';
 
 interface LoginScreenProps {
   users: ManagedUser[];
@@ -35,119 +36,161 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ users, onLogin }) => {
 
     const success = onLogin(selectedUserId, password);
     if (!success) {
-      setError('Contraseña incorrecta. Por favor, intente de nuevo.');
+      setError('Contraseña incorrecta.');
     }
   };
 
   const closeModal = () => {
     setSelectedRole(null);
+    setError('');
+    setPassword('');
   };
 
-  const selectedUserName = users.find(u => u.id === selectedUserId)?.name || '';
+  // Estilos modernos (Dark Inputs)
+  const labelStyle = "block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2 ml-2";
+  const inputStyle = "block w-full px-5 py-4 bg-slate-700 border border-slate-600 text-white font-medium focus:ring-2 focus:ring-brand-secondary focus:border-transparent transition-all placeholder-slate-400 shadow-inner rounded-2xl text-base";
 
   return (
     <>
-      <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-slate-900 to-brand-dark">
-        <div className="w-full max-w-md p-10 space-y-8 bg-white/95 backdrop-blur-xl rounded-3xl shadow-2xl animate-fade-in-down border border-white/20">
-          <div className="text-center">
-            <div className="flex justify-center mb-6">
-              <div className="p-4 bg-brand-light rounded-2xl shadow-inner">
-                <PillIcon className="w-12 h-12 text-brand-primary" />
-              </div>
-            </div>
-            <h1 className="text-3xl font-extrabold text-slate-800 tracking-tight">FARMACIA ELEAM</h1>
-            <h2 className="text-xl font-semibold text-brand-primary tracking-wide mt-1">EL NAZARENO</h2>
-            <p className="mt-4 text-sm font-medium text-slate-500 uppercase tracking-wider">Gestión de Medicamentos</p>
+      <div className="flex items-center justify-center min-h-screen bg-slate-900 relative overflow-hidden font-sans">
+        
+        {/* Fondo Decorativo */}
+        <div className="absolute inset-0 bg-gradient-to-br from-slate-900 via-slate-800 to-brand-dark opacity-80" />
+        <div className="absolute top-[-10%] right-[-5%] w-[600px] h-[600px] bg-brand-primary/10 rounded-full blur-[100px] animate-pulse pointer-events-none" />
+        <div className="absolute bottom-[-10%] left-[-10%] w-[500px] h-[500px] bg-brand-secondary/10 rounded-full blur-[100px] pointer-events-none" />
+
+        {/* Contenedor Principal */}
+        <div className="w-full max-w-md relative z-10 p-6 animate-fade-in-down">
+          <div className="bg-white rounded-[40px] shadow-2xl overflow-hidden border border-white/10 ring-1 ring-black/20 relative">
+             
+             {/* Barra Superior Decorativa Global */}
+             <div className="h-3 bg-gradient-to-r from-brand-primary via-brand-secondary to-brand-primary w-full" />
+             
+             <div className="p-8 sm:p-10">
+                {/* Header Logo */}
+                <div className="text-center mb-10">
+                    <div className="inline-flex justify-center items-center p-5 bg-brand-light rounded-[28px] shadow-sm border border-brand-secondary/20 mb-6">
+                        <PillIcon className="w-12 h-12 text-brand-primary" />
+                    </div>
+                    <h1 className="text-3xl font-extrabold text-slate-800 tracking-tight">FARMACIA ELEAM</h1>
+                    <p className="text-brand-primary font-bold tracking-[0.2em] text-xs uppercase mt-3">El Nazareno</p>
+                </div>
+
+                {/* LISTA DE BOTONES - ESTILO TARJETA GRIS (RESIDENTES) */}
+                <div className="space-y-5">
+                    <p className="text-[10px] font-bold text-slate-400 text-center uppercase tracking-widest mb-2">Seleccione Perfil</p>
+                    
+                    {roles.map((role) => (
+                    <button
+                        key={role}
+                        onClick={() => handleRoleSelect(role)}
+                        className="group relative w-full bg-slate-200 rounded-3xl p-0 overflow-hidden shadow-lg shadow-slate-300/50 border border-slate-300 transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl hover:shadow-slate-400/50 hover:bg-slate-50 hover:border-brand-primary/50"
+                    >
+                        {/* Barra Decorativa del Botón */}
+                        <div className="h-1.5 bg-gradient-to-r from-brand-primary to-brand-secondary w-full shrink-0 opacity-70 group-hover:opacity-100 transition-opacity"></div>
+                        
+                        <div className="p-5 flex justify-between items-center">
+                            <div className="text-left pl-2">
+                                <span className="block font-extrabold text-slate-600 uppercase tracking-wide text-sm group-hover:text-brand-primary transition-colors">
+                                    {role}
+                                </span>
+                                <span className="text-[10px] text-slate-400 font-medium group-hover:text-brand-secondary/80 transition-colors">Clic para ingresar</span>
+                            </div>
+                            
+                            <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center text-slate-400 shadow-sm border border-slate-200 group-hover:text-brand-secondary group-hover:scale-110 transition-all duration-300">
+                                <ArrowRightIcon className="w-5 h-5" />
+                            </div>
+                        </div>
+                    </button>
+                    ))}
+                </div>
+                
+                <div className="mt-10 text-center">
+                    <p className="text-[10px] text-slate-300 font-bold uppercase tracking-widest">Gestión de Medicamentos v3.0</p>
+                </div>
+             </div>
           </div>
-          
-          <div className="space-y-3">
-            <h3 className="text-sm font-bold text-center text-slate-400 uppercase tracking-widest mb-4">Seleccione Perfil</h3>
-            {roles.map((role) => (
-              <button
-                key={role}
-                onClick={() => handleRoleSelect(role)}
-                className="w-full px-6 py-4 text-lg font-semibold text-slate-700 bg-white border border-slate-200 rounded-2xl shadow-sm hover:bg-brand-light hover:border-brand-secondary hover:text-brand-primary transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-brand-primary focus:ring-offset-2 active:scale-[0.98]"
-              >
-                {role}
-              </button>
-            ))}
-          </div>
-          <p className="text-xs text-center text-slate-400 mt-8 font-medium">© 2025 ELEAM Solutions. Versión Segura.</p>
         </div>
       </div>
 
+      {/* Modal de Contraseña (Overlay) */}
       {selectedRole && (
-        <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-50 flex justify-center items-center p-4">
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm relative animate-scale-in overflow-hidden">
-            <div className="bg-brand-primary px-8 py-6">
-              <div className="flex justify-between items-center">
-                 <h2 className="text-2xl font-bold text-white">Bienvenido</h2>
-                 <button onClick={closeModal} className="text-white/80 hover:text-white transition-colors bg-white/10 p-1 rounded-full hover:bg-white/20">
+        <div className="fixed inset-0 bg-slate-900/90 backdrop-blur-md z-50 flex justify-center items-center p-6 animate-scale-in">
+          <div className="bg-white rounded-[40px] shadow-2xl w-full max-w-sm relative overflow-hidden border border-white/20 ring-1 ring-black/10">
+            
+            {/* Barra Superior */}
+            <div className="h-4 bg-gradient-to-r from-brand-secondary to-brand-primary w-full" />
+            
+            <div className="p-8 pb-4 flex justify-between items-center">
+                <div>
+                    <h2 className="text-2xl font-extrabold text-slate-800 tracking-tight">Acceso</h2>
+                    <div className="flex items-center gap-2 mt-1">
+                        <div className="w-2 h-2 rounded-full bg-brand-primary animate-pulse"></div>
+                        <p className="text-xs text-brand-primary font-bold uppercase tracking-widest">{selectedRole}</p>
+                    </div>
+                </div>
+                <button 
+                    onClick={closeModal} 
+                    className="p-3 bg-slate-100 rounded-full text-slate-400 hover:text-slate-700 hover:bg-slate-200 transition-all"
+                >
                   <CloseIcon className="w-5 h-5" />
                 </button>
-              </div>
-              <p className="text-brand-light mt-1 opacity-90">
-                  Ingreso como <span className="font-bold">{selectedRole}</span>
-              </p>
             </div>
-            
-            <form onSubmit={handlePasswordSubmit} className="p-8 pt-6">
-              <div className="space-y-5">
-                <div>
-                  <label htmlFor="user-select" className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Usuario</label>
+
+            <form onSubmit={handlePasswordSubmit} className="p-8 pt-4 space-y-6">
+               <div>
+                  <label className={labelStyle}>Usuario</label>
                   <div className="relative">
                     <select
-                      id="user-select"
                       value={selectedUserId}
                       onChange={(e) => setSelectedUserId(e.target.value)}
-                      className="block w-full pl-4 pr-10 py-3 text-base border-slate-200 bg-slate-50 focus:ring-2 focus:ring-brand-primary focus:border-brand-primary rounded-xl transition-shadow text-slate-800 font-medium appearance-none cursor-pointer"
+                      className={`${inputStyle} appearance-none cursor-pointer hover:bg-slate-600`}
                     >
                       {usersForSelectedRole.map(user => (
-                        <option key={user.id} value={user.id} className="text-slate-800">{user.name}</option>
+                        <option key={user.id} value={user.id} className="bg-slate-800 text-white py-2">{user.name}</option>
                       ))}
                     </select>
-                    <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-slate-500">
+                    <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-5 text-white/50">
                       <svg className="h-4 w-4 fill-current" viewBox="0 0 20 20"><path d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"/></svg>
                     </div>
                   </div>
-                </div>
+               </div>
 
-                <div>
-                  <label htmlFor="password" className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
-                    Contraseña
-                  </label>
+               <div>
+                  <label className={labelStyle}>Contraseña</label>
                   <input
                     type="password"
-                    id="password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="block w-full px-4 py-3 border-slate-200 bg-slate-100 text-slate-800 rounded-xl focus:ring-2 focus:ring-brand-primary focus:border-transparent transition-all placeholder-slate-400"
+                    className={inputStyle}
                     required
                     autoFocus
                     placeholder="••••••••"
                   />
-                </div>
-                {error && (
-                  <div className="p-3 bg-red-50 border border-red-100 rounded-xl text-red-600 text-sm font-medium text-center animate-pulse">
-                    {error}
+               </div>
+
+               {error && (
+                  <div className="p-4 bg-red-50 border border-red-100 rounded-2xl flex items-center gap-3 animate-pulse">
+                    <div className="w-2 h-2 bg-red-500 rounded-full shrink-0"></div>
+                    <p className="text-red-600 text-xs font-bold">{error}</p>
                   </div>
-                )}
-              </div>
-              <div className="flex justify-end items-center pt-8 gap-3">
-                <button
-                  type="button"
-                  onClick={closeModal}
-                  className="px-6 py-3 text-slate-600 font-semibold rounded-xl hover:bg-slate-100 transition-colors"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  className="px-8 py-3 bg-brand-primary text-white font-bold rounded-xl shadow-lg shadow-brand-primary/30 hover:bg-brand-dark hover:shadow-brand-primary/50 transition-all transform active:scale-95"
-                >
-                  Ingresar
-                </button>
-              </div>
+               )}
+
+               <div className="pt-4 flex gap-3">
+                    <button
+                        type="button"
+                        onClick={closeModal}
+                        className="flex-1 py-4 text-slate-500 font-bold rounded-2xl hover:bg-slate-100 hover:text-slate-800 transition-all"
+                    >
+                        Cancelar
+                    </button>
+                    <button
+                        type="submit"
+                        className="flex-1 py-4 bg-gradient-to-r from-brand-primary to-brand-secondary text-white font-bold rounded-2xl shadow-lg shadow-brand-primary/30 hover:shadow-brand-primary/50 hover:-translate-y-1 transition-all active:scale-95"
+                    >
+                        Ingresar
+                    </button>
+               </div>
             </form>
           </div>
         </div>

@@ -1,3 +1,4 @@
+
 import React, { useState, useCallback, useEffect } from 'react';
 import LoginScreen from './components/LoginScreen';
 import MainLayout from './components/MainLayout';
@@ -6,6 +7,7 @@ import { MOCK_USERS } from './constants';
 
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
+  const [appVersion, setAppVersion] = useState(5); // Versión incrementada para forzar recarga
   
   const [managedUsers, setManagedUsers] = useState<ManagedUser[]>(() => {
     try {
@@ -34,6 +36,7 @@ const App: React.FC = () => {
         name: userToLogin.name,
         permissions: userToLogin.permissions,
       });
+      setAppVersion(v => v + 1);
       return true;
     }
     return false;
@@ -44,10 +47,11 @@ const App: React.FC = () => {
   }, []);
 
   if (!user) {
-    return <LoginScreen users={managedUsers} onLogin={handleLogin} />;
+    return <LoginScreen key={`login-refresh-${appVersion}`} users={managedUsers} onLogin={handleLogin} />;
   }
 
   return <MainLayout 
+           key={`layout-refresh-${appVersion}`}
            user={user} 
            onLogout={handleLogout} 
            users={managedUsers} 

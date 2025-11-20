@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Resident, ResidentMedication, User, MedicalReport } from '../../types';
 import ArrowLeftIcon from '../icons/ArrowLeftIcon';
