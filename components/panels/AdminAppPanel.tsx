@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { User, ManagedUser } from '../../types';
 import UserModal from './UserModal';
@@ -9,9 +8,10 @@ interface AdminAppPanelProps {
   users: ManagedUser[];
   onSaveUser: (userData: Omit<ManagedUser, 'id'> | ManagedUser) => void;
   onDeleteUser: (userId: string) => void;
+  onLoadSampleData: () => void;
 }
 
-const AdminAppPanel: React.FC<AdminAppPanelProps> = ({ currentUser, users, onSaveUser, onDeleteUser }) => {
+const AdminAppPanel: React.FC<AdminAppPanelProps> = ({ currentUser, users, onSaveUser, onDeleteUser, onLoadSampleData }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [userToEdit, setUserToEdit] = useState<ManagedUser | undefined>(undefined);
   const [userToDelete, setUserToDelete] = useState<ManagedUser | null>(null);
@@ -42,14 +42,22 @@ const AdminAppPanel: React.FC<AdminAppPanelProps> = ({ currentUser, users, onSav
 
   return (
     <div>
-      <div className="flex justify-between items-center mb-6">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
         <h1 className="text-3xl font-bold text-gray-800">Administración de Usuarios</h1>
-        <button
-          onClick={handleOpenModalForAdd}
-          className="px-6 py-3 bg-brand-primary text-white font-bold rounded-lg shadow-md hover:bg-brand-dark transition-colors"
-        >
-          + Crear Usuario Nuevo
-        </button>
+        <div className="flex flex-wrap gap-3">
+            <button
+            onClick={onLoadSampleData}
+            className="px-6 py-3 bg-brand-secondary text-white font-bold rounded-lg shadow-md hover:bg-teal-600 transition-colors"
+            >
+            Cargar Datos de Ejemplo
+            </button>
+            <button
+            onClick={handleOpenModalForAdd}
+            className="px-6 py-3 bg-brand-primary text-white font-bold rounded-lg shadow-md hover:bg-brand-dark transition-colors"
+            >
+            + Crear Usuario Nuevo
+            </button>
+        </div>
       </div>
 
       <div className="bg-white p-6 rounded-xl shadow-lg">

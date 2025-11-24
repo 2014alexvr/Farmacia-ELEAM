@@ -2,7 +2,7 @@ import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { User, Panel, Resident, ResidentMedication, ManagedUser, MedicalReport } from '../types';
 import { ROLE_PANELS, MOCK_RESIDENTS, MOCK_RESIDENT_MEDICATIONS } from '../constants';
 import Sidebar from './Sidebar';
-import DashboardModern from './panels/DashboardModern'; // NEW IMPORT
+import DashboardModern from './panels/DashboardModern';
 import { ResidentsPanel } from './panels/ResidentsPanel';
 import MedicationsPanel from './panels/MedicationsPanel';
 import SummaryCesfamPanel from './panels/SummaryCesfamPanel';
@@ -15,6 +15,7 @@ import ConfirmLogoutModal from './panels/ConfirmLogoutModal';
 import MenuIcon from './icons/MenuIcon';
 import AdminAppPanel from './panels/AdminAppPanel';
 import GeneralInventoryPanel from './panels/GeneralInventoryPanel';
+import { supabase } from '../supabaseClient';
 
 interface MainLayoutProps {
   user: User;
@@ -29,51 +30,320 @@ const MainLayout: React.FC<MainLayoutProps> = ({ user, onLogout, users, setUsers
   const [selectedResident, setSelectedResident] = useState<Resident | null>(null);
   const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [loadingData, setLoadingData] = useState(false);
 
-  const [residents, setResidents] = useState<Resident[]>(() => {
-    try {
-      const savedResidents = localStorage.getItem('farmaciaEleam_residents');
-      return savedResidents ? JSON.parse(savedResidents) : MOCK_RESIDENTS;
-    } catch (error) {
-      return MOCK_RESIDENTS;
-    }
-  });
-  const [residentMedications, setResidentMedications] = useState<ResidentMedication[]>(() => {
-    try {
-      const savedMeds = localStorage.getItem('farmaciaEleam_residentMedications');
-      return savedMeds ? JSON.parse(savedMeds) : MOCK_RESIDENT_MEDICATIONS;
-    } catch (error) {
-      return MOCK_RESIDENT_MEDICATIONS;
-    }
-  });
-  
-  const [medicalReports, setMedicalReports] = useState<MedicalReport[]>(() => {
-    try {
-      const savedReports = localStorage.getItem('farmaciaEleam_medicalReports');
-      return savedReports ? JSON.parse(savedReports) : [];
-    } catch (error) {
-      return [];
-    }
-  });
+  // States for data
+  const [residents, setResidents] = useState<Resident[]>([]);
+  const [residentMedications, setResidentMedications] = useState<ResidentMedication[]>([]);
+  const [medicalReports, setMedicalReports] = useState<MedicalReport[]>([]);
 
-  useEffect(() => { try { localStorage.setItem('farmaciaEleam_residents', JSON.stringify(residents)); } catch (e){} }, [residents]);
-  useEffect(() => { try { localStorage.setItem('farmaciaEleam_residentMedications', JSON.stringify(residentMedications)); } catch (e){} }, [residentMedications]);
-  useEffect(() => { try { localStorage.setItem('farmaciaEleam_medicalReports', JSON.stringify(medicalReports)); } catch (e){} }, [medicalReports]);
+  // Initial Data Fetch from Supabase
+  useEffect(() => {
+    const fetchData = async () => {
+      setLoadingData(true);
+      try {
+        // Fetch Residents
+        const { data: residentsData, error: resError } = await supabase.from('residents').select('*');
+        if (residentsData) {
+          // Map DB columns to Frontend types if needed (snake_case to camelCase handled manually if needed, 
+          // but our SQL creates camelCase friendly or we map it here)
+          const mappedResidents = residentsData.map((r: any) => ({
+             id: r.id,
+             name: r.name,
+             rut: r.rut,
+             dateOfBirth: r.date_of_birth
+          }));
+          setResidents(mappedResidents);
+        } else if (resError) {
+             console.error("Error fetching residents", resError);
+             // Fallback for demo if table empty
+             if (residents.length === 0) setResidents(MOCK_RESIDENTS); 
+        }
+
+        // Fetch Medications
+        const { data: medsData, error: medsError } = await supabase.from('resident_medications').select('*');
+        if (medsData) {
+            const mappedMeds = medsData.map((m: any) => ({
+                id: m.id,
+                residentId: m.resident_id,
+                medicationName: m.medication_name,
+                doseValue: m.dose_value,
+                doseUnit: m.dose_unit,
+                schedules: m.schedules, // JSONB comes as object/array
+                stock: m.stock,
+                stockUnit: m.stock_unit,
+                provenance: m.provenance,
+                deliveryDate: m.delivery_date
+            }));
+            setResidentMedications(mappedMeds);
+        } else if (medsError) {
+             console.error("Error fetching medications", medsError);
+             if (residentMedications.length === 0) setResidentMedications(MOCK_RESIDENT_MEDICATIONS);
+        }
+
+        // Fetch Reports
+        const { data: reportsData, error: repError } = await supabase.from('medical_reports').select('*');
+        if (reportsData) {
+            const mappedReports = reportsData.map((r: any) => ({
+                id: r.id,
+                residentId: r.resident_id,
+                fileName: r.file_name,
+                fileData: r.file_data,
+                uploadDate: r.upload_date
+            }));
+            setMedicalReports(mappedReports);
+        }
+
+      } catch (error) {
+        console.error("Error loading data from Supabase", error);
+      } finally {
+        setLoadingData(false);
+      }
+    };
+
+    fetchData();
+  }, []); // Run once on mount
 
   const handleSelectResident = (resident: Resident) => { setSelectedResident(resident); setActivePanel(Panel.ResidentMedications); };
   const handleBackToResidents = () => { setSelectedResident(null); setActivePanel(Panel.Residents); };
-  const handleSaveResident = useCallback((residentData: Omit<Resident, 'id'> | Resident) => { if ('id' in residentData) { setResidents(prev => prev.map(r => r.id === residentData.id ? residentData : r)); } else { const newResident = { ...residentData, id: Date.now() }; setResidents(prev => [...prev, newResident]); } }, []);
-  const handleDeleteResident = useCallback((residentId: number) => { setResidents(prev => prev.filter(r => r.id !== residentId)); setResidentMedications(prev => prev.filter(m => m.residentId !== residentId)); }, []);
-  const handleSaveMedication = useCallback((medicationData: Omit<ResidentMedication, 'id' | 'residentId'> | ResidentMedication) => { if ('id' in medicationData) { setResidentMedications(prev => prev.map(m => m.id === medicationData.id ? medicationData : m)); } else { if (selectedResident) { const newMedication = { ...medicationData, id: `RMED${Date.now()}`, residentId: selectedResident.id, }; setResidentMedications(prev => [...prev, newMedication]); } } }, [selectedResident]);
-  const handleDeleteMedication = useCallback((medicationId: string) => { setResidentMedications(prev => prev.filter(m => m.id !== medicationId)); }, []);
-  const handleSaveReport = useCallback((report: MedicalReport) => { setMedicalReports(prev => [report, ...prev]); }, []);
-  const handleDeleteReport = useCallback((reportId: string) => { setMedicalReports(prev => prev.filter(r => r.id !== reportId)); }, []);
+
+  // --- Residents CRUD ---
+  const handleSaveResident = useCallback(async (residentData: Omit<Resident, 'id'> | Resident) => {
+    try {
+        let residentToSave: Resident;
+        if ('id' in residentData) {
+            residentToSave = residentData;
+        } else {
+            residentToSave = { ...residentData, id: Date.now() }; // Generate numeric ID for new
+        }
+
+        // Map to DB Schema
+        const dbPayload = {
+            id: residentToSave.id,
+            name: residentToSave.name,
+            rut: residentToSave.rut,
+            date_of_birth: residentToSave.dateOfBirth
+        };
+
+        const { error } = await supabase.from('residents').upsert(dbPayload);
+
+        if (error) throw error;
+
+        // Update local state
+        setResidents(prev => {
+            if ('id' in residentData) {
+                return prev.map(r => r.id === residentData.id ? residentData : r);
+            } else {
+                return [...prev, residentToSave];
+            }
+        });
+    } catch (e) {
+        console.error("Error saving resident:", e);
+        alert("Error al guardar residente en la base de datos.");
+    }
+  }, []);
+
+  const handleDeleteResident = useCallback(async (residentId: number) => {
+    try {
+        const { error } = await supabase.from('residents').delete().eq('id', residentId);
+        if (error) throw error;
+
+        setResidents(prev => prev.filter(r => r.id !== residentId));
+        setResidentMedications(prev => prev.filter(m => m.residentId !== residentId));
+        setMedicalReports(prev => prev.filter(r => r.residentId !== residentId));
+    } catch (e) {
+        console.error("Error deleting resident:", e);
+        alert("Error al eliminar residente.");
+    }
+  }, []);
+
+  // --- Medications CRUD ---
+  const handleSaveMedication = useCallback(async (medicationData: Omit<ResidentMedication, 'id' | 'residentId'> | ResidentMedication) => {
+    try {
+        let medToSave: ResidentMedication;
+        
+        if ('id' in medicationData) {
+            medToSave = medicationData as ResidentMedication;
+        } else {
+            if (!selectedResident) return;
+            medToSave = { 
+                ...medicationData, 
+                id: `RMED${Date.now()}`, 
+                residentId: selectedResident.id, 
+            };
+        }
+
+        // Map to DB Schema
+        const dbPayload = {
+            id: medToSave.id,
+            resident_id: medToSave.residentId,
+            medication_name: medToSave.medicationName,
+            dose_value: medToSave.doseValue,
+            dose_unit: medToSave.doseUnit,
+            schedules: medToSave.schedules, // Supabase handles JSONB
+            stock: medToSave.stock,
+            stock_unit: medToSave.stockUnit,
+            provenance: medToSave.provenance,
+            delivery_date: medToSave.deliveryDate
+        };
+
+        const { error } = await supabase.from('resident_medications').upsert(dbPayload);
+        if (error) throw error;
+
+        setResidentMedications(prev => {
+             if ('id' in medicationData) {
+                 return prev.map(m => m.id === medicationData.id ? medToSave : m);
+             } else {
+                 return [...prev, medToSave];
+             }
+        });
+
+    } catch (e) {
+        console.error("Error saving medication:", e);
+        alert("Error al guardar medicamento.");
+    }
+  }, [selectedResident]);
+
+  const handleDeleteMedication = useCallback(async (medicationId: string) => {
+    try {
+        const { error } = await supabase.from('resident_medications').delete().eq('id', medicationId);
+        if (error) throw error;
+        setResidentMedications(prev => prev.filter(m => m.id !== medicationId));
+    } catch (e) {
+        console.error("Error deleting medication:", e);
+        alert("Error al eliminar medicamento.");
+    }
+  }, []);
+
+  // --- Reports CRUD ---
+  const handleSaveReport = useCallback(async (report: MedicalReport) => {
+    try {
+        const dbPayload = {
+            id: report.id,
+            resident_id: report.residentId,
+            file_name: report.fileName,
+            file_data: report.fileData,
+            upload_date: report.uploadDate
+        };
+
+        const { error } = await supabase.from('medical_reports').insert(dbPayload);
+        if (error) throw error;
+
+        setMedicalReports(prev => [report, ...prev]);
+    } catch (e) {
+        console.error("Error saving report:", e);
+        alert("Error al subir informe.");
+    }
+  }, []);
+
+  const handleDeleteReport = useCallback(async (reportId: string) => {
+    try {
+        const { error } = await supabase.from('medical_reports').delete().eq('id', reportId);
+        if (error) throw error;
+        setMedicalReports(prev => prev.filter(r => r.id !== reportId));
+    } catch (e) {
+        console.error("Error deleting report:", e);
+        alert("Error al eliminar informe.");
+    }
+  }, []);
+
+  // --- Users CRUD ---
+  const handleSaveUser = useCallback(async (userData: Omit<ManagedUser, 'id'> | ManagedUser) => {
+    try {
+        let userToSave: ManagedUser;
+        if ('id' in userData) {
+            userToSave = userData as ManagedUser;
+        } else {
+            userToSave = { ...userData, id: `user-${Date.now()}` };
+        }
+
+        const { error } = await supabase.from('app_users').upsert(userToSave);
+        if (error) throw error;
+
+        setUsers(prev => {
+            if ('id' in userData) {
+                return prev.map(u => u.id === userData.id ? userToSave : u);
+            } else {
+                return [...prev, userToSave];
+            }
+        });
+    } catch (e) {
+        console.error("Error saving user:", e);
+        alert("Error al guardar usuario.");
+    }
+  }, [setUsers]);
+
+  const handleDeleteUser = useCallback(async (userId: string) => {
+    try {
+        const { error } = await supabase.from('app_users').delete().eq('id', userId);
+        if (error) throw error;
+        setUsers(prev => prev.filter(u => u.id !== userId));
+    } catch (e) {
+        console.error("Error deleting user:", e);
+        alert("Error al eliminar usuario.");
+    }
+  }, [setUsers]);
+
+  // --- SAMPLE DATA SEEDING ---
+  const handleLoadSampleData = useCallback(async () => {
+    if (!confirm("¿Está seguro de que desea cargar los datos de ejemplo? Esto agregará residentes y medicamentos de prueba a la base de datos.")) return;
+    
+    setLoadingData(true);
+    try {
+        // 1. Insert Residents
+        const residentsPayload = MOCK_RESIDENTS.map(r => ({
+            id: r.id,
+            name: r.name,
+            rut: r.rut,
+            date_of_birth: r.dateOfBirth
+        }));
+        
+        const { error: resError } = await supabase.from('residents').upsert(residentsPayload);
+        if (resError) throw resError;
+
+        // 2. Insert Medications
+        const medsPayload = MOCK_RESIDENT_MEDICATIONS.map(m => ({
+            id: m.id,
+            resident_id: m.residentId,
+            medication_name: m.medicationName,
+            dose_value: m.doseValue,
+            dose_unit: m.doseUnit,
+            schedules: m.schedules,
+            stock: m.stock,
+            stock_unit: m.stockUnit,
+            provenance: m.provenance,
+            delivery_date: m.deliveryDate
+        }));
+
+        const { error: medError } = await supabase.from('resident_medications').upsert(medsPayload);
+        if (medError) throw medError;
+        
+        alert("Datos de ejemplo cargados exitosamente.");
+        window.location.reload();
+        
+    } catch (e) {
+        console.error("Error loading sample data:", e);
+        alert("Error al cargar datos de ejemplo.");
+    } finally {
+        setLoadingData(false);
+    }
+  }, []);
+
   const handleLogoutClick = () => { setIsLogoutModalOpen(true); };
   const handleConfirmLogout = () => { setIsLogoutModalOpen(false); onLogout(); };
-  const handleSaveUser = useCallback((userData: Omit<ManagedUser, 'id'> | ManagedUser) => { if ('id' in userData) { setUsers(prev => prev.map(u => u.id === userData.id ? userData : u)); } else { const newUser = { ...userData, id: `user-${Date.now()}` }; setUsers(prev => [...prev, newUser]); } }, [setUsers]);
-  const handleDeleteUser = useCallback((userId: string) => { setUsers(prev => prev.filter(u => u.id !== userId)); }, [setUsers]);
 
   const renderPanel = () => {
+    if (loadingData && activePanel !== Panel.AdminApp) {
+         return (
+             <div className="flex h-full items-center justify-center">
+                 <div className="flex flex-col items-center">
+                    <div className="w-8 h-8 border-4 border-brand-primary border-t-transparent rounded-full animate-spin mb-2"></div>
+                    <p className="text-slate-400">Cargando datos...</p>
+                 </div>
+             </div>
+         )
+    }
+
     if (activePanel === Panel.ResidentMedications && selectedResident) {
       return (
         <ResidentMedicationsPanel
@@ -102,7 +372,14 @@ const MainLayout: React.FC<MainLayoutProps> = ({ user, onLogout, users, setUsers
       case Panel.SummaryMentalHealth: return <SummaryMentalHealthPanel />;
       case Panel.SummaryFamily: return <SummaryFamilyPanel />;
       case Panel.SummaryPurchases: return <SummaryPurchasesPanel />;
-      case Panel.AdminApp: return <AdminAppPanel currentUser={user} users={users} onSaveUser={handleSaveUser} onDeleteUser={handleDeleteUser} />;
+      case Panel.AdminApp: 
+        return <AdminAppPanel 
+                  currentUser={user} 
+                  users={users} 
+                  onSaveUser={handleSaveUser} 
+                  onDeleteUser={handleDeleteUser} 
+                  onLoadSampleData={handleLoadSampleData}
+               />;
       default: return <DashboardModern user={user} residents={residents} residentMedications={residentMedications} onNavigate={setActivePanel} />;
     }
   };
