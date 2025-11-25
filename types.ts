@@ -21,6 +21,7 @@ export interface ManagedUser {
   name: string;
   password: string;
   permissions: PermissionLevel;
+  displayOrder?: number;
 }
 
 export enum Panel {

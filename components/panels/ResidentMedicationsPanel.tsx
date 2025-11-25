@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Resident, ResidentMedication, User, MedicalReport } from '../../types';
 import ArrowLeftIcon from '../icons/ArrowLeftIcon';
-import AddMedicationModalModern from './AddMedicationModalModern'; // NEW IMPORT
+import AddMedicationModalModern from './AddMedicationModalModern'; 
 import ConfirmDeleteModal from './ConfirmDeleteModal';
 import DocumentTextIcon from '../icons/DocumentTextIcon';
 import MedicalReportModal from './MedicalReportModal';
@@ -19,6 +19,7 @@ interface ResidentMedicationsPanelProps {
   medicalReports: MedicalReport[];
   onSaveReport: (report: MedicalReport) => void;
   onDeleteReport: (reportId: string) => void;
+  lowStockThreshold: number;
 }
 
 const calculateAge = (dob: string): number => {
@@ -41,7 +42,8 @@ const ResidentMedicationsPanel: React.FC<ResidentMedicationsPanelProps> = ({
   onDeleteMedication,
   medicalReports,
   onSaveReport,
-  onDeleteReport
+  onDeleteReport,
+  lowStockThreshold
 }) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
@@ -162,7 +164,7 @@ const ResidentMedicationsPanel: React.FC<ResidentMedicationsPanelProps> = ({
         <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
           <div className="p-4 bg-slate-50 rounded-2xl">
             <p className="text-xs text-slate-400 font-bold uppercase mb-1">Nombre Completo</p>
-            <p className="font-bold text-slate-800">{resident.name}</p>
+            <p className="font-bold text-slate-800 text-3xl leading-tight">{resident.name}</p>
           </div>
           <div className="p-4 bg-slate-50 rounded-2xl">
             <p className="text-xs text-slate-400 font-bold uppercase mb-1">RUT</p>
@@ -191,60 +193,65 @@ const ResidentMedicationsPanel: React.FC<ResidentMedicationsPanelProps> = ({
         <div className="overflow-x-auto print:overflow-visible">
           <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="border-b border-slate-200">
-                <th className="pb-4 pl-2 font-bold text-xs text-slate-400 uppercase tracking-wider">Medicamento</th>
-                <th className="pb-4 font-bold text-xs text-slate-400 uppercase tracking-wider">Dosis</th>
-                <th className="pb-4 font-bold text-xs text-slate-400 uppercase tracking-wider">Horarios</th>
-                <th className="pb-4 font-bold text-xs text-slate-400 uppercase tracking-wider">Posología</th>
-                <th className="pb-4 font-bold text-xs text-slate-400 uppercase tracking-wider text-center">Gasto Diario</th>
-                <th className="pb-4 font-bold text-xs text-slate-400 uppercase tracking-wider text-center">Stock</th>
-                <th className="pb-4 font-bold text-xs text-slate-400 uppercase tracking-wider text-center">Días con Stock</th>
-                <th className="pb-4 font-bold text-xs text-slate-400 uppercase tracking-wider">Procedencia</th>
-                <th className="pb-4 font-bold text-xs text-slate-400 uppercase tracking-wider">Fecha de Entrega</th>
-                <th className="pb-4 font-bold text-xs text-slate-400 uppercase tracking-wider text-center print:hidden">Acciones</th>
+              <tr className="border-b border-slate-200 bg-slate-50">
+                <th className="px-4 py-4 font-bold text-xs text-slate-400 uppercase tracking-wider rounded-tl-xl">Medicamento</th>
+                <th className="px-4 py-4 font-bold text-xs text-slate-400 uppercase tracking-wider">Dosis</th>
+                <th className="px-4 py-4 font-bold text-xs text-slate-400 uppercase tracking-wider">Horarios</th>
+                <th className="px-4 py-4 font-bold text-xs text-slate-400 uppercase tracking-wider">Posología</th>
+                <th className="px-4 py-4 font-bold text-xs text-slate-400 uppercase tracking-wider text-center">Gasto Diario</th>
+                <th className="px-4 py-4 font-bold text-xs text-slate-400 uppercase tracking-wider text-center">Stock</th>
+                <th className="px-4 py-4 font-bold text-xs text-slate-400 uppercase tracking-wider text-center">Días con Stock</th>
+                <th className="px-4 py-4 font-bold text-xs text-slate-400 uppercase tracking-wider">Procedencia</th>
+                <th className="px-4 py-4 font-bold text-xs text-slate-400 uppercase tracking-wider">Fecha de Entrega</th>
+                <th className="px-4 py-4 font-bold text-xs text-slate-400 uppercase tracking-wider text-center print:hidden rounded-tr-xl">Acciones</th>
               </tr>
             </thead>
-            <tbody className="text-sm">
+            <tbody className="divide-y divide-slate-100">
               {medications.length > 0 ? (
                 medications.map((med) => {
                   const dailyExpense = med.schedules.reduce((sum, s) => sum + s.quantity, 0);
                   const stockDays = dailyExpense > 0 ? Math.floor(med.stock / dailyExpense) : 'N/A';
-                  const isLowStock = typeof stockDays === 'number' && stockDays <= 6;
+                  const isLowStock = typeof stockDays === 'number' && stockDays < lowStockThreshold;
                   
                   return (
-                    <tr key={med.id} className={`group border-b border-slate-50 hover:bg-slate-50/80 transition-colors ${isLowStock ? 'bg-red-50/30' : ''}`}>
-                      <td className="p-4 font-semibold text-slate-800 align-top rounded-l-xl">
-                        <button onClick={() => handleOpenModalForEdit(med)} disabled={!canModify} className={`text-left ${canModify ? 'hover:text-brand-primary transition-colors cursor-pointer' : 'cursor-default'}`}>
+                    <tr key={med.id} className={`group hover:bg-slate-50 transition-colors ${isLowStock ? 'bg-red-50/40 hover:bg-red-50/60' : ''}`}>
+                      <td className="p-4 align-top">
+                        <button onClick={() => handleOpenModalForEdit(med)} disabled={!canModify} className={`text-left text-lg font-bold text-slate-800 ${canModify ? 'hover:text-brand-primary transition-colors cursor-pointer' : 'cursor-default'}`}>
                           {med.medicationName}
                         </button>
                       </td>
-                      <td className="p-4 text-slate-600 align-top font-medium">{`${med.doseValue} ${med.doseUnit}`}</td>
-                      <td className="p-4 text-slate-600 align-top font-mono text-xs">
-                        {med.schedules.map((s, i) => <div key={i} className="h-5 mb-1">{s.time}</div>)}
+                      <td className="p-4 text-slate-600 align-top font-medium text-lg">{`${med.doseValue} ${med.doseUnit}`}</td>
+                      <td className="p-4 text-slate-600 align-top text-base">
+                        {med.schedules.map((s, i) => <div key={i} className="mb-1">{s.time}</div>)}
                       </td>
-                      <td className="p-4 text-slate-600 align-top">
-                         {med.schedules.map((s, i) => <div key={i} className="h-5 mb-1">{`${s.quantity} ${s.unit}`}</div>)}
+                      <td className="p-4 text-slate-600 align-top text-lg">
+                         {med.schedules.map((s, i) => <div key={i} className="mb-1">{`${s.quantity} ${s.unit}`}</div>)}
                       </td>
-                      <td className="p-4 text-center text-slate-600 align-top">{dailyExpense}</td>
-                      <td className="p-4 text-center text-slate-800 font-bold align-top">{`${med.stock} ${med.stockUnit}`}</td>
-                      <td className="p-4 text-center align-top">
+                      <td className="p-4 text-center text-slate-600 align-top text-lg font-semibold">{dailyExpense}</td>
+                      <td className="p-4 text-center text-slate-800 font-bold align-top text-lg">{`${med.stock} ${med.stockUnit}`}</td>
+                      <td className="p-4 text-center align-top text-lg">
                           <span className={`font-bold ${isLowStock ? 'text-red-500' : 'text-emerald-600'}`}>{stockDays}</span>
                       </td>
                       <td className="p-4 align-top">
-                          <span className={`px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide rounded-full ${
+                          <span className={`inline-block px-3 py-1 text-xs font-bold uppercase tracking-wide rounded-full ${
                               med.provenance === 'Cesfam' ? 'bg-blue-50 text-blue-600 border border-blue-100' :
                               med.provenance === 'Compras' ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' :
-                              'bg-slate-100 text-slate-600'
+                              'bg-slate-100 text-slate-600 border border-slate-200'
                           }`}>
                               {med.provenance}
                           </span>
                       </td>
-                      <td className="p-4 text-slate-600 align-top font-medium">
+                      <td className="p-4 text-slate-600 align-top font-medium text-base">
                         {med.deliveryDate ? new Date(med.deliveryDate).toLocaleDateString('es-CL', { timeZone: 'UTC' }) : 'N/A'}
                       </td>
-                      <td className="p-4 text-center align-top print:hidden rounded-r-xl">
+                      <td className="p-4 text-center align-top print:hidden">
                         {canDelete && (
-                          <button onClick={() => setMedicationToDelete(med)} className="text-xs font-bold text-red-400 hover:text-red-600 hover:bg-red-50 px-3 py-1.5 rounded-lg transition-all opacity-0 group-hover:opacity-100">Eliminar</button>
+                          <button onClick={() => setMedicationToDelete(med)} className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all opacity-0 group-hover:opacity-100">
+                             <span className="sr-only">Eliminar</span>
+                             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                             </svg>
+                          </button>
                         )}
                       </td>
                     </tr>
@@ -264,6 +271,7 @@ const ResidentMedicationsPanel: React.FC<ResidentMedicationsPanelProps> = ({
                 onClose={() => { setIsModalOpen(false); setMedicationToEdit(null); }}
                 onSave={handleSave}
                 medicationToEdit={medicationToEdit || undefined}
+                lowStockThreshold={lowStockThreshold}
             />
         )}
         {medicationToDelete && (

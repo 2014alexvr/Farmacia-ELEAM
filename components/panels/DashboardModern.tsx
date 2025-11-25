@@ -1,3 +1,4 @@
+
 import React, { useMemo } from 'react';
 import UsersIcon from '../icons/UsersIcon';
 import PillIcon from '../icons/PillIcon';
@@ -5,27 +6,32 @@ import { User, Resident, ResidentMedication, Panel } from '../../types';
 import ChartBarIcon from '../icons/ChartBarIcon';
 import HeartPulseIcon from '../icons/HeartPulseIcon';
 import ArrowRightIcon from '../icons/ArrowRightIcon';
+import BellIcon from '../icons/BellIcon';
 
 interface DashboardProps {
     user: User;
     residents: Resident[];
     residentMedications: ResidentMedication[];
     onNavigate: (panel: Panel) => void;
+    lowStockThreshold: number;
+    onUpdateThreshold: (newThreshold: number) => void;
 }
 
-const DashboardModern: React.FC<DashboardProps> = ({ user, residents, residentMedications, onNavigate }) => {
+const DashboardModern: React.FC<DashboardProps> = ({ user, residents, residentMedications, onNavigate, lowStockThreshold, onUpdateThreshold }) => {
+    const canEditThreshold = user.permissions !== 'Solo Lectura';
+
     const lowStockMedications = useMemo(() => {
         return residentMedications.reduce((count, med) => {
              const dailyExpense = med.schedules.reduce((sum, s) => sum + (Number(s.quantity) || 0), 0);
              if (dailyExpense > 0) {
                  const stockDays = Math.floor(med.stock / dailyExpense);
-                 if (stockDays <= 6) {
+                 if (stockDays < lowStockThreshold) {
                      return count + 1;
                  }
              }
              return count;
         }, 0);
-    }, [residentMedications]);
+    }, [residentMedications, lowStockThreshold]);
     
     const uniqueMedicationTypes = useMemo(() => {
         const names = new Set(residentMedications.map(m => m.medicationName.trim()));
@@ -37,7 +43,7 @@ const DashboardModern: React.FC<DashboardProps> = ({ user, residents, residentMe
   return (
     <div className="animate-fade-in-down">
       {/* Header Section */}
-      <div className="relative bg-white rounded-[30px] shadow-soft border border-slate-100 p-8 mb-10 overflow-hidden">
+      <div className="relative bg-white rounded-[30px] shadow-soft border border-slate-100 p-8 mb-8 overflow-hidden">
         <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-brand-primary via-brand-secondary to-brand-primary" />
         <div className="flex items-center gap-6 relative z-10">
             <div className="p-4 bg-brand-light rounded-2xl text-brand-primary shadow-sm border border-brand-secondary/20 hidden sm:block">
@@ -50,6 +56,46 @@ const DashboardModern: React.FC<DashboardProps> = ({ user, residents, residentMe
         </div>
       </div>
       
+      {/* Configuration Section */}
+      <div className="bg-white p-6 rounded-[30px] shadow-soft border border-slate-100 mb-8 flex flex-col sm:flex-row items-center justify-between gap-4">
+         <div className="flex items-center gap-4">
+            <div className="p-3 bg-emerald-50 rounded-2xl text-emerald-500 border border-emerald-100">
+                <BellIcon className="w-6 h-6" />
+            </div>
+            <div>
+                 <h2 className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-1">Configuración de Alerta Global</h2>
+                 <p className="text-slate-500 font-medium">Defina el umbral de días para considerar un stock como crítico.</p>
+            </div>
+         </div>
+         <div className="flex flex-col items-end">
+            <div className={`flex items-center gap-4 bg-slate-50 p-2 rounded-2xl border ${!canEditThreshold ? 'opacity-75' : 'border-slate-200'}`}>
+                <button 
+                    onClick={() => onUpdateThreshold(Math.max(1, lowStockThreshold - 1))}
+                    disabled={!canEditThreshold}
+                    className="w-10 h-10 rounded-xl bg-white text-slate-600 font-bold shadow-sm hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center text-xl border border-slate-200 transition-all"
+                >
+                    -
+                </button>
+                <div className="text-center min-w-[80px]">
+                    <p className="text-2xl font-extrabold text-brand-primary leading-none">{lowStockThreshold}</p>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase mt-1">Días</p>
+                </div>
+                <button 
+                    onClick={() => onUpdateThreshold(lowStockThreshold + 1)}
+                    disabled={!canEditThreshold}
+                    className="w-10 h-10 rounded-xl bg-white text-slate-600 font-bold shadow-sm hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center text-xl border border-slate-200 transition-all"
+                >
+                    +
+                </button>
+            </div>
+            {!canEditThreshold && (
+                <span className="text-[10px] text-amber-600 font-bold mt-2 bg-amber-50 px-2 py-1 rounded-lg border border-amber-100">
+                    🔒 Sólo Lectura
+                </span>
+            )}
+         </div>
+      </div>
+
       {/* KPI Grid - DISEÑO TARJETAS GRIS (RESIDENTES) */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
         

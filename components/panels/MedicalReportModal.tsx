@@ -5,6 +5,7 @@ import UploadIcon from '../icons/UploadIcon';
 import DocumentTextIcon from '../icons/DocumentTextIcon';
 import TrashIcon from '../icons/TrashIcon';
 import EyeIcon from '../icons/EyeIcon';
+import { supabase } from '../../supabaseClient';
 
 interface MedicalReportModalProps {
   user: User;
@@ -55,52 +56,88 @@ const MedicalReportModal: React.FC<MedicalReportModalProps> = ({ user, resident,
 
     setUploading(true);
     
-    const reader = new FileReader();
-    reader.readAsDataURL(selectedFile);
-    reader.onload = () => {
-      const base64 = reader.result as string;
-      
-      const newReport: MedicalReport = {
-        id: `REP-${Date.now()}`,
-        residentId: resident.id,
-        fileName: selectedFile.name,
-        fileData: base64,
-        uploadDate: new Date().toISOString(),
-      };
+    try {
+        // 1. Definir la ruta del archivo: resident_{id}/{timestamp}_{filename}
+        // Sanear el nombre del archivo para evitar caracteres extraños
+        const sanitizedFileName = selectedFile.name.replace(/[^a-zA-Z0-9.-]/g, '_');
+        const filePath = `resident_${resident.id}/${Date.now()}_${sanitizedFileName}`;
 
-      setTimeout(() => {
+        // 2. Subir al Bucket 'documentos'
+        const { error: uploadError } = await supabase.storage
+            .from('documentos')
+            .upload(filePath, selectedFile, {
+                cacheControl: '3600',
+                upsert: false
+            });
+
+        if (uploadError) {
+            console.error('Error subiendo archivo:', uploadError);
+            throw uploadError;
+        }
+
+        // 3. Obtener la URL pública
+        const { data: { publicUrl } } = supabase.storage
+            .from('documentos')
+            .getPublicUrl(filePath);
+
+        // 4. Crear el objeto MedicalReport con la URL pública
+        const newReport: MedicalReport = {
+            id: `REP-${Date.now()}`,
+            residentId: resident.id,
+            fileName: selectedFile.name,
+            fileData: publicUrl, // Aquí guardamos la URL de Supabase
+            uploadDate: new Date().toISOString(),
+        };
+
+        // 5. Guardar en Base de Datos (a través de MainLayout)
         onSaveReport(newReport);
-        setUploading(false);
+        
+        // Limpiar estado
         setSelectedFile(null);
-      }, 1000);
-    };
+        
+    } catch (error: any) {
+        console.error("Error en el proceso de subida:", error);
+        alert(`Error al subir el archivo: ${error.message || 'Error desconocido'}`);
+    } finally {
+        setUploading(false);
+    }
   };
 
   const handleDownload = (report: MedicalReport) => {
-    const link = document.createElement('a');
-    link.href = report.fileData;
-    link.download = report.fileName;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    // Si es una URL de Supabase o externa
+    if (report.fileData.startsWith('http')) {
+        window.open(report.fileData, '_blank');
+    } else {
+        // Fallback para Base64 antiguo (si existiera)
+        const link = document.createElement('a');
+        link.href = report.fileData;
+        link.download = report.fileName;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    }
   };
 
   const handleView = (report: MedicalReport) => {
     try {
-      const base64Data = report.fileData.split(',')[1];
-      const byteCharacters = atob(base64Data);
-      const byteNumbers = new Array(byteCharacters.length);
-      for (let i = 0; i < byteCharacters.length; i++) {
-        byteNumbers[i] = byteCharacters.charCodeAt(i);
+      if (report.fileData.startsWith('http')) {
+         // Abrir URL directamente
+         window.open(report.fileData, '_blank');
+      } else {
+         // Lógica antigua para Base64
+          const base64Data = report.fileData.split(',')[1];
+          const byteCharacters = atob(base64Data);
+          const byteNumbers = new Array(byteCharacters.length);
+          for (let i = 0; i < byteCharacters.length; i++) {
+            byteNumbers[i] = byteCharacters.charCodeAt(i);
+          }
+          const byteArray = new Uint8Array(byteNumbers);
+          const blob = new Blob([byteArray], { type: 'application/pdf' });
+          const url = URL.createObjectURL(blob);
+          window.open(url, '_blank');
       }
-      const byteArray = new Uint8Array(byteNumbers);
-      const blob = new Blob([byteArray], { type: 'application/pdf' });
-      const url = URL.createObjectURL(blob);
-      
-      window.open(url, '_blank');
-      
     } catch (error) {
-      console.error("Error generating PDF blob:", error);
+      console.error("Error visualizando archivo:", error);
       alert("No se pudo abrir el archivo. Intente descargarlo.");
     }
   };
@@ -137,7 +174,7 @@ const MedicalReportModal: React.FC<MedicalReportModalProps> = ({ user, resident,
                   onDragOver={handleDragOver}
                   onDragLeave={handleDragLeave}
                   onDrop={handleDrop}
-                  onClick={() => fileInputRef.current?.click()}
+                  onClick={() => !uploading && fileInputRef.current?.click()}
                 >
                   <input 
                     type="file" 
@@ -145,6 +182,7 @@ const MedicalReportModal: React.FC<MedicalReportModalProps> = ({ user, resident,
                     className="hidden" 
                     ref={fileInputRef} 
                     onChange={handleFileSelect} 
+                    disabled={uploading}
                   />
                   
                   {selectedFile ? (
@@ -156,15 +194,23 @@ const MedicalReportModal: React.FC<MedicalReportModalProps> = ({ user, resident,
                           <button 
                               onClick={(e) => { e.stopPropagation(); setSelectedFile(null); }}
                               className="px-4 py-2 text-sm text-red-600 bg-red-50 rounded-md hover:bg-red-100"
+                              disabled={uploading}
                           >
                               Cancelar
                           </button>
                           <button 
                               onClick={(e) => { e.stopPropagation(); handleUpload(); }}
                               disabled={uploading}
-                              className="px-4 py-2 text-sm text-white bg-brand-primary rounded-md hover:bg-brand-dark disabled:bg-gray-400"
+                              className="px-4 py-2 text-sm text-white bg-brand-primary rounded-md hover:bg-brand-dark disabled:bg-gray-400 flex items-center gap-2"
                           >
-                              {uploading ? 'Subiendo...' : 'Confirmar Subida'}
+                              {uploading ? (
+                                <>
+                                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                                  Subiendo...
+                                </>
+                              ) : (
+                                'Confirmar Subida'
+                              )}
                           </button>
                       </div>
                     </div>
@@ -205,7 +251,7 @@ const MedicalReportModal: React.FC<MedicalReportModalProps> = ({ user, resident,
                       <button 
                           onClick={() => handleDownload(report)}
                           className="px-3 py-1.5 text-sm font-medium text-brand-primary bg-blue-50 rounded-md hover:bg-blue-100 transition-colors"
-                          title="Descargar archivo"
+                          title="Abrir/Descargar archivo"
                       >
                           Descargar
                       </button>

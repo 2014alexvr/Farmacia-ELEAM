@@ -22,9 +22,10 @@ interface MainLayoutProps {
   onLogout: () => void;
   users: ManagedUser[];
   setUsers: React.Dispatch<React.SetStateAction<ManagedUser[]>>;
+  onUsersMutated: () => Promise<void>;
 }
 
-const MainLayout: React.FC<MainLayoutProps> = ({ user, onLogout, users, setUsers }) => {
+const MainLayout: React.FC<MainLayoutProps> = ({ user, onLogout, users, setUsers, onUsersMutated }) => {
   const availablePanels = useMemo(() => ROLE_PANELS[user.role], [user.role]);
   const [activePanel, setActivePanel] = useState<Panel>(availablePanels[0] || Panel.Dashboard);
   const [selectedResident, setSelectedResident] = useState<Resident | null>(null);
@@ -36,17 +37,24 @@ const MainLayout: React.FC<MainLayoutProps> = ({ user, onLogout, users, setUsers
   const [residents, setResidents] = useState<Resident[]>([]);
   const [residentMedications, setResidentMedications] = useState<ResidentMedication[]>([]);
   const [medicalReports, setMedicalReports] = useState<MedicalReport[]>([]);
+  
+  // GLOBAL SETTING: Low Stock Threshold (default 7 days)
+  const [lowStockThreshold, setLowStockThreshold] = useState<number>(7);
 
   // Initial Data Fetch from Supabase
   useEffect(() => {
     const fetchData = async () => {
       setLoadingData(true);
       try {
+        // Fetch Settings
+        const { data: settingsData } = await supabase.from('app_settings').select('value').eq('key', 'low_stock_threshold').single();
+        if (settingsData && settingsData.value) {
+            setLowStockThreshold(parseInt(settingsData.value, 10));
+        }
+
         // Fetch Residents
         const { data: residentsData, error: resError } = await supabase.from('residents').select('*');
         if (residentsData) {
-          // Map DB columns to Frontend types if needed (snake_case to camelCase handled manually if needed, 
-          // but our SQL creates camelCase friendly or we map it here)
           const mappedResidents = residentsData.map((r: any) => ({
              id: r.id,
              name: r.name,
@@ -56,7 +64,6 @@ const MainLayout: React.FC<MainLayoutProps> = ({ user, onLogout, users, setUsers
           setResidents(mappedResidents);
         } else if (resError) {
              console.error("Error fetching residents", resError);
-             // Fallback for demo if table empty
              if (residents.length === 0) setResidents(MOCK_RESIDENTS); 
         }
 
@@ -65,11 +72,12 @@ const MainLayout: React.FC<MainLayoutProps> = ({ user, onLogout, users, setUsers
         if (medsData) {
             const mappedMeds = medsData.map((m: any) => ({
                 id: m.id,
+                resident_id: m.resident_id, // keep for ref
                 residentId: m.resident_id,
                 medicationName: m.medication_name,
                 doseValue: m.dose_value,
                 doseUnit: m.dose_unit,
-                schedules: m.schedules, // JSONB comes as object/array
+                schedules: m.schedules,
                 stock: m.stock,
                 stockUnit: m.stock_unit,
                 provenance: m.provenance,
@@ -82,7 +90,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ user, onLogout, users, setUsers
         }
 
         // Fetch Reports
-        const { data: reportsData, error: repError } = await supabase.from('medical_reports').select('*');
+        const { data: reportsData } = await supabase.from('medical_reports').select('*');
         if (reportsData) {
             const mappedReports = reportsData.map((r: any) => ({
                 id: r.id,
@@ -102,7 +110,16 @@ const MainLayout: React.FC<MainLayoutProps> = ({ user, onLogout, users, setUsers
     };
 
     fetchData();
-  }, []); // Run once on mount
+  }, []);
+
+  const handleUpdateThreshold = async (newThreshold: number) => {
+    setLowStockThreshold(newThreshold);
+    try {
+        await supabase.from('app_settings').upsert({ key: 'low_stock_threshold', value: String(newThreshold) });
+    } catch(e) {
+        console.error("Error saving setting", e);
+    }
+  };
 
   const handleSelectResident = (resident: Resident) => { setSelectedResident(resident); setActivePanel(Panel.ResidentMedications); };
   const handleBackToResidents = () => { setSelectedResident(null); setActivePanel(Panel.Residents); };
@@ -114,10 +131,9 @@ const MainLayout: React.FC<MainLayoutProps> = ({ user, onLogout, users, setUsers
         if ('id' in residentData) {
             residentToSave = residentData;
         } else {
-            residentToSave = { ...residentData, id: Date.now() }; // Generate numeric ID for new
+            residentToSave = { ...residentData, id: Date.now() }; 
         }
 
-        // Map to DB Schema
         const dbPayload = {
             id: residentToSave.id,
             name: residentToSave.name,
@@ -126,10 +142,8 @@ const MainLayout: React.FC<MainLayoutProps> = ({ user, onLogout, users, setUsers
         };
 
         const { error } = await supabase.from('residents').upsert(dbPayload);
-
         if (error) throw error;
 
-        // Update local state
         setResidents(prev => {
             if ('id' in residentData) {
                 return prev.map(r => r.id === residentData.id ? residentData : r);
@@ -173,14 +187,13 @@ const MainLayout: React.FC<MainLayoutProps> = ({ user, onLogout, users, setUsers
             };
         }
 
-        // Map to DB Schema
         const dbPayload = {
             id: medToSave.id,
             resident_id: medToSave.residentId,
             medication_name: medToSave.medicationName,
             dose_value: medToSave.doseValue,
             dose_unit: medToSave.doseUnit,
-            schedules: medToSave.schedules, // Supabase handles JSONB
+            schedules: medToSave.schedules,
             stock: medToSave.stock,
             stock_unit: medToSave.stockUnit,
             provenance: medToSave.provenance,
@@ -247,87 +260,89 @@ const MainLayout: React.FC<MainLayoutProps> = ({ user, onLogout, users, setUsers
     }
   }, []);
 
-  // --- Users CRUD ---
+  // --- Users CRUD & Reordering ---
   const handleSaveUser = useCallback(async (userData: Omit<ManagedUser, 'id'> | ManagedUser) => {
     try {
         let userToSave: ManagedUser;
-        if ('id' in userData) {
+        const isNew = !('id' in userData);
+
+        if (!isNew) {
             userToSave = userData as ManagedUser;
         } else {
-            userToSave = { ...userData, id: `user-${Date.now()}` };
+            // Assign a default display order (end of list)
+            const maxOrder = users.length > 0 ? Math.max(...users.map(u => u.displayOrder || 0)) : 0;
+            userToSave = { ...userData, id: `user-${Date.now()}`, displayOrder: maxOrder + 1 };
         }
 
-        const { error } = await supabase.from('app_users').upsert(userToSave);
-        if (error) throw error;
-
-        setUsers(prev => {
-            if ('id' in userData) {
-                return prev.map(u => u.id === userData.id ? userToSave : u);
+        // 1. OPTIMISTIC UI UPDATE: Update local state immediately
+        setUsers(prevUsers => {
+            if (isNew) {
+                return [...prevUsers, userToSave];
             } else {
-                return [...prev, userToSave];
+                return prevUsers.map(u => u.id === userToSave.id ? userToSave : u);
             }
         });
+
+        const dbPayload = {
+            id: userToSave.id,
+            role: userToSave.role,
+            name: userToSave.name,
+            password: userToSave.password,
+            permissions: userToSave.permissions,
+            display_order: userToSave.displayOrder ?? 0
+        };
+
+        const { error } = await supabase.from('app_users').upsert(dbPayload);
+        if (error) throw error;
+
+        // We don't await onUsersMutated() here to avoid overriding the optimistic update 
+        // if the DB fetch is slower or fails.
+        
     } catch (e) {
         console.error("Error saving user:", e);
         alert("Error al guardar usuario.");
     }
-  }, [setUsers]);
+  }, [users, setUsers]);
 
   const handleDeleteUser = useCallback(async (userId: string) => {
     try {
+        // Optimistic Delete
+        setUsers(prev => prev.filter(u => u.id !== userId));
+
         const { error } = await supabase.from('app_users').delete().eq('id', userId);
         if (error) throw error;
-        setUsers(prev => prev.filter(u => u.id !== userId));
+        
     } catch (e) {
         console.error("Error deleting user:", e);
         alert("Error al eliminar usuario.");
+        await onUsersMutated(); // Revert if failed
     }
-  }, [setUsers]);
+  }, [setUsers, onUsersMutated]);
 
-  // --- SAMPLE DATA SEEDING ---
-  const handleLoadSampleData = useCallback(async () => {
-    if (!confirm("¿Está seguro de que desea cargar los datos de ejemplo? Esto agregará residentes y medicamentos de prueba a la base de datos.")) return;
-    
-    setLoadingData(true);
-    try {
-        // 1. Insert Residents
-        const residentsPayload = MOCK_RESIDENTS.map(r => ({
-            id: r.id,
-            name: r.name,
-            rut: r.rut,
-            date_of_birth: r.dateOfBirth
-        }));
-        
-        const { error: resError } = await supabase.from('residents').upsert(residentsPayload);
-        if (resError) throw resError;
+  const handleReorderUsers = useCallback(async (reorderedUsers: ManagedUser[]) => {
+      // Optimistic update
+      setUsers(reorderedUsers);
 
-        // 2. Insert Medications
-        const medsPayload = MOCK_RESIDENT_MEDICATIONS.map(m => ({
-            id: m.id,
-            resident_id: m.residentId,
-            medication_name: m.medicationName,
-            dose_value: m.doseValue,
-            dose_unit: m.doseUnit,
-            schedules: m.schedules,
-            stock: m.stock,
-            stock_unit: m.stockUnit,
-            provenance: m.provenance,
-            delivery_date: m.deliveryDate
-        }));
+      try {
+          // Prepare bulk upsert payload
+          const upsertPayload = reorderedUsers.map((u, index) => ({
+              id: u.id,
+              role: u.role,
+              name: u.name,
+              password: u.password,
+              permissions: u.permissions,
+              display_order: index // Explicitly set order based on array index
+          }));
 
-        const { error: medError } = await supabase.from('resident_medications').upsert(medsPayload);
-        if (medError) throw medError;
-        
-        alert("Datos de ejemplo cargados exitosamente.");
-        window.location.reload();
-        
-    } catch (e) {
-        console.error("Error loading sample data:", e);
-        alert("Error al cargar datos de ejemplo.");
-    } finally {
-        setLoadingData(false);
-    }
-  }, []);
+          const { error } = await supabase.from('app_users').upsert(upsertPayload);
+          if (error) throw error;
+          
+      } catch (e) {
+          console.error("Error reordering users:", e);
+          alert("Error al guardar el orden de los usuarios.");
+          await onUsersMutated(); // Revert if failed
+      }
+  }, [setUsers, onUsersMutated]);
 
   const handleLogoutClick = () => { setIsLogoutModalOpen(true); };
   const handleConfirmLogout = () => { setIsLogoutModalOpen(false); onLogout(); };
@@ -356,19 +371,50 @@ const MainLayout: React.FC<MainLayoutProps> = ({ user, onLogout, users, setUsers
           medicalReports={medicalReports.filter(r => r.residentId === selectedResident.id)}
           onSaveReport={handleSaveReport}
           onDeleteReport={handleDeleteReport}
+          lowStockThreshold={lowStockThreshold}
         />
       );
     }
 
     switch (activePanel) {
       case Panel.Dashboard:
-        return <DashboardModern user={user} residents={residents} residentMedications={residentMedications} onNavigate={setActivePanel} />;
+        return (
+          <DashboardModern 
+            user={user} 
+            residents={residents} 
+            residentMedications={residentMedications} 
+            onNavigate={setActivePanel}
+            lowStockThreshold={lowStockThreshold}
+            onUpdateThreshold={handleUpdateThreshold}
+          />
+        );
       case Panel.Residents:
         return <ResidentsPanel user={user} onSelectResident={handleSelectResident} residents={residents} onSaveResident={handleSaveResident} onDeleteResident={handleDeleteResident} />;
       case Panel.Medications: return <MedicationsPanel />;
-      case Panel.GeneralInventory: return <GeneralInventoryPanel residentMedications={residentMedications} residents={residents} />;
-      case Panel.SummaryCesfam: return <SummaryCesfamPanel residents={residents} residentMedications={residentMedications} />;
-      case Panel.SummaryIndividualStock: return <SummaryIndividualStockPanel residents={residents} residentMedications={residentMedications} onSelectResident={handleSelectResident} />;
+      case Panel.GeneralInventory: 
+        return (
+          <GeneralInventoryPanel 
+            residentMedications={residentMedications} 
+            residents={residents} 
+            lowStockThreshold={lowStockThreshold}
+          />
+        );
+      case Panel.SummaryCesfam: 
+        return (
+          <SummaryCesfamPanel 
+            residents={residents} 
+            residentMedications={residentMedications}
+            lowStockThreshold={lowStockThreshold}
+          />
+        );
+      case Panel.SummaryIndividualStock: 
+        return <SummaryIndividualStockPanel 
+                  residents={residents} 
+                  residentMedications={residentMedications} 
+                  onSelectResident={handleSelectResident} 
+                  user={user}
+                  threshold={lowStockThreshold}
+               />;
       case Panel.SummaryMentalHealth: return <SummaryMentalHealthPanel />;
       case Panel.SummaryFamily: return <SummaryFamilyPanel />;
       case Panel.SummaryPurchases: return <SummaryPurchasesPanel />;
@@ -377,10 +423,20 @@ const MainLayout: React.FC<MainLayoutProps> = ({ user, onLogout, users, setUsers
                   currentUser={user} 
                   users={users} 
                   onSaveUser={handleSaveUser} 
-                  onDeleteUser={handleDeleteUser} 
-                  onLoadSampleData={handleLoadSampleData}
+                  onDeleteUser={handleDeleteUser}
+                  onReorderUsers={handleReorderUsers}
                />;
-      default: return <DashboardModern user={user} residents={residents} residentMedications={residentMedications} onNavigate={setActivePanel} />;
+      default: 
+        return (
+          <DashboardModern 
+            user={user} 
+            residents={residents} 
+            residentMedications={residentMedications} 
+            onNavigate={setActivePanel}
+            lowStockThreshold={lowStockThreshold}
+            onUpdateThreshold={handleUpdateThreshold}
+          />
+        );
     }
   };
 

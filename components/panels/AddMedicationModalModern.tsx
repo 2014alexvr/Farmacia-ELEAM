@@ -7,13 +7,14 @@ interface AddMedicationModalProps {
   onClose: () => void;
   onSave: (medication: Omit<ResidentMedication, 'id' | 'residentId'> | ResidentMedication) => void;
   medicationToEdit?: ResidentMedication;
+  lowStockThreshold: number;
 }
 
 const DOSE_UNITS = ['Mcg', 'Mg', 'Gr', 'Mg/ml', 'NPH', '%', ''];
 const POSOLOGY_UNITS = ['Comp', 'Gotas', 'Puff', 'UI', 'CC', ''];
 const PROVENANCE_OPTIONS: Provenance[] = ['Cesfam', 'Salud Mental', 'Hospital', 'CAE Quilpué', 'CAE Viña', 'Familia', 'Compras', 'Donación'];
 
-const AddMedicationModalModern: React.FC<AddMedicationModalProps> = ({ onClose, onSave, medicationToEdit }) => {
+const AddMedicationModalModern: React.FC<AddMedicationModalProps> = ({ onClose, onSave, medicationToEdit, lowStockThreshold }) => {
   const [medicationName, setMedicationName] = useState('');
   const [doseValue, setDoseValue] = useState('');
   const [doseUnit, setDoseUnit] = useState('Mg');
@@ -246,8 +247,8 @@ const AddMedicationModalModern: React.FC<AddMedicationModalProps> = ({ onClose, 
                     </div>
 
                     <div className={`p-4 rounded-3xl border flex flex-col justify-center relative overflow-hidden transition-all duration-300 shadow-lg ${
-                        stockDays <= 6 && stockDays > 0 ? 'bg-red-500 border-red-600 shadow-red-500/30' : 
-                        stockDays > 6 ? 'bg-emerald-500 border-emerald-600 shadow-emerald-500/30' : 
+                        stockDays < lowStockThreshold && stockDays > 0 ? 'bg-red-500 border-red-600 shadow-red-500/30' : 
+                        stockDays >= lowStockThreshold ? 'bg-emerald-500 border-emerald-600 shadow-emerald-500/30' : 
                         'bg-slate-100 border-slate-200'
                     }`}>
                         <p className={`text-[10px] font-bold uppercase mb-1 ${stockDays > 0 ? 'text-white/80' : 'text-slate-400'}`}>Cobertura Estimada</p>
@@ -257,7 +258,7 @@ const AddMedicationModalModern: React.FC<AddMedicationModalProps> = ({ onClose, 
                             </span>
                             <span className={`text-xs font-medium ${stockDays > 0 ? 'text-white/80' : 'text-slate-400'}`}>Días</span>
                         </div>
-                        {stockDays <= 6 && stockDays > 0 && (
+                        {stockDays < lowStockThreshold && stockDays > 0 && (
                              <span className="absolute bottom-3 right-3 bg-white/20 px-2 py-1 rounded-lg text-[9px] font-bold text-white tracking-wide backdrop-blur-sm">CRÍTICO</span>
                         )}
                     </div>

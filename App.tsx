@@ -12,36 +12,44 @@ const App: React.FC = () => {
   
   const [managedUsers, setManagedUsers] = useState<ManagedUser[]>([]);
 
+  // Centralized fetch function wrapped in useCallback
+  const fetchUsers = useCallback(async () => {
+    try {
+      const { data, error } = await supabase
+        .from('app_users')
+        .select('*')
+        .order('display_order', { ascending: true });
+
+      if (error) {
+        console.error('Error fetching users from Supabase:', error);
+        setManagedUsers(prev => prev.length === 0 ? MOCK_USERS : prev);
+      } else {
+        if (data && data.length > 0) {
+          const mappedUsers: ManagedUser[] = data.map((u: any) => ({
+              id: u.id,
+              role: u.role,
+              name: u.name,
+              password: u.password,
+              permissions: u.permissions,
+              displayOrder: u.display_order
+          }));
+          setManagedUsers(mappedUsers);
+        } else {
+          setManagedUsers(MOCK_USERS);
+        }
+      }
+    } catch (err) {
+      console.error('Unexpected error fetching users:', err);
+      setManagedUsers(prev => prev.length === 0 ? MOCK_USERS : prev);
+    } finally {
+      setIsLoadingUsers(false);
+    }
+  }, []);
+
   // Fetch users from Supabase on mount
   useEffect(() => {
-    const fetchUsers = async () => {
-      try {
-        const { data, error } = await supabase
-          .from('app_users')
-          .select('*');
-
-        if (error) {
-          console.error('Error fetching users from Supabase:', error);
-          // Fallback to mock users if DB fails or is empty initially (safety net)
-          setManagedUsers(MOCK_USERS);
-        } else {
-          if (data && data.length > 0) {
-            setManagedUsers(data as ManagedUser[]);
-          } else {
-            // If DB is empty, use mock users so admin can login and sync
-            setManagedUsers(MOCK_USERS);
-          }
-        }
-      } catch (err) {
-        console.error('Unexpected error fetching users:', err);
-        setManagedUsers(MOCK_USERS);
-      } finally {
-        setIsLoadingUsers(false);
-      }
-    };
-
     fetchUsers();
-  }, []);
+  }, [fetchUsers]);
 
   const handleLogin = useCallback((userId: string, passwordAttempt: string): boolean => {
     const userToLogin = managedUsers.find(u => u.id === userId);
@@ -58,9 +66,11 @@ const App: React.FC = () => {
     return false;
   }, [managedUsers]);
 
-  const handleLogout = useCallback(() => {
+  const handleLogout = useCallback(async () => {
     setUser(null);
-  }, []);
+    // Optional: refresh users on logout to ensure login screen is fresh
+    await fetchUsers();
+  }, [fetchUsers]);
 
   if (isLoadingUsers) {
     return (
@@ -83,6 +93,7 @@ const App: React.FC = () => {
            onLogout={handleLogout} 
            users={managedUsers} 
            setUsers={setManagedUsers}
+           onUsersMutated={fetchUsers}
          />;
 };
 
