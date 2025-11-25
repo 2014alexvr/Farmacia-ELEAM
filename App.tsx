@@ -15,13 +15,13 @@ const App: React.FC = () => {
   // Centralized fetch function wrapped in useCallback
   const fetchUsers = useCallback(async () => {
     try {
+      // Remove .order('display_order') to prevent crash if column doesn't exist yet
       const { data, error } = await supabase
         .from('app_users')
-        .select('*')
-        .order('display_order', { ascending: true });
+        .select('*');
 
       if (error) {
-        console.error('Error fetching users from Supabase:', error);
+        console.error('Error fetching users from Supabase:', error.message || error);
         setManagedUsers(prev => prev.length === 0 ? MOCK_USERS : prev);
       } else {
         if (data && data.length > 0) {
@@ -33,13 +33,17 @@ const App: React.FC = () => {
               permissions: u.permissions,
               displayOrder: u.display_order
           }));
+          
+          // Sort client-side to be safe
+          mappedUsers.sort((a, b) => (a.displayOrder || 0) - (b.displayOrder || 0));
+          
           setManagedUsers(mappedUsers);
         } else {
           setManagedUsers(MOCK_USERS);
         }
       }
-    } catch (err) {
-      console.error('Unexpected error fetching users:', err);
+    } catch (err: any) {
+      console.error('Unexpected error fetching users:', err.message || err);
       setManagedUsers(prev => prev.length === 0 ? MOCK_USERS : prev);
     } finally {
       setIsLoadingUsers(false);

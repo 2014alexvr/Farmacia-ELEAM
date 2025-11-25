@@ -44,6 +44,7 @@ export interface Resident {
   name: string;
   rut: string;
   dateOfBirth: string; // YYYY-MM-DD format
+  displayOrder?: number;
 }
 
 export interface Medication {

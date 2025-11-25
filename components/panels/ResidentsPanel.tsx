@@ -1,10 +1,13 @@
 
+
 import React, { useState, useMemo } from 'react';
 import { User, Resident } from '../../types';
 import AddResidentModal from './AddResidentModal';
 import ConfirmDeleteModal from './ConfirmDeleteModal';
 import PencilIcon from '../icons/PencilIcon';
 import TrashIcon from '../icons/TrashIcon';
+import ChevronUpIcon from '../icons/ChevronUpIcon';
+import ChevronDownIcon from '../icons/ChevronDownIcon';
 
 interface ResidentsPanelProps {
   user: User;
@@ -12,6 +15,7 @@ interface ResidentsPanelProps {
   residents: Resident[];
   onSaveResident: (residentData: Omit<Resident, 'id'> | Resident) => void;
   onDeleteResident: (residentId: number) => void;
+  onReorderResidents?: (residents: Resident[]) => void;
 }
 
 const calculateAge = (dob: string): number => {
@@ -33,7 +37,7 @@ const formatDate = (dateString: string) => {
     return `${day}-${month}-${year}`;
 };
 
-export const ResidentsPanel: React.FC<ResidentsPanelProps> = ({ user, onSelectResident, residents, onSaveResident, onDeleteResident }) => {
+export const ResidentsPanel: React.FC<ResidentsPanelProps> = ({ user, onSelectResident, residents, onSaveResident, onDeleteResident, onReorderResidents }) => {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [residentToEdit, setResidentToEdit] = useState<Resident | undefined>(undefined);
   const [residentToDelete, setResidentToDelete] = useState<Resident | null>(null);
@@ -41,6 +45,9 @@ export const ResidentsPanel: React.FC<ResidentsPanelProps> = ({ user, onSelectRe
 
   const canAddOrDelete = user.permissions === 'Total' || user.permissions === 'Modificar';
   const canModify = user.permissions === 'Total' || user.permissions === 'Modificar';
+  
+  // Only allow reordering if searching is not active and permission allows
+  const canReorder = canModify && !!onReorderResidents && !searchTerm;
 
   const filteredResidents = useMemo(() => {
     if (!searchTerm.trim()) {
@@ -81,6 +88,21 @@ export const ResidentsPanel: React.FC<ResidentsPanelProps> = ({ user, onSelectRe
     }
   };
 
+  const moveResident = (index: number, direction: 'up' | 'down') => {
+      if (!onReorderResidents) return;
+      
+      const newResidents = [...residents];
+      const targetIndex = direction === 'up' ? index - 1 : index + 1;
+      
+      if (targetIndex < 0 || targetIndex >= newResidents.length) return;
+
+      const temp = newResidents[index];
+      newResidents[index] = newResidents[targetIndex];
+      newResidents[targetIndex] = temp;
+
+      onReorderResidents(newResidents);
+  };
+
   return (
     <div>
       <div className="flex flex-wrap justify-between items-center mb-8 gap-4">
@@ -117,8 +139,11 @@ export const ResidentsPanel: React.FC<ResidentsPanelProps> = ({ user, onSelectRe
 
       {filteredResidents.length > 0 ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6">
-          {filteredResidents.map((resident) => {
+          {filteredResidents.map((resident, index) => {
             const age = calculateAge(resident.dateOfBirth);
+            const isFirst = index === 0;
+            const isLast = index === filteredResidents.length - 1;
+
             return (
               <div
                 key={resident.id}
@@ -156,23 +181,48 @@ export const ResidentsPanel: React.FC<ResidentsPanelProps> = ({ user, onSelectRe
                 </div>
                 
                 {canModify && (
-                  <div className="px-6 py-4 bg-slate-300 border-t border-slate-400/30 flex justify-end items-center gap-2 opacity-0 group-hover:opacity-100 transition-all duration-200">
-                      <button 
-                          onClick={(e) => handleOpenModalForEdit(resident, e)} 
-                          className="p-2 text-slate-600 hover:text-brand-secondary hover:bg-white rounded-lg transition-colors"
-                          title="Editar"
-                      >
-                          <PencilIcon className="w-5 h-5" />
-                      </button>
-                      {canAddOrDelete && (
+                  <div className="px-6 py-4 bg-slate-300 border-t border-slate-400/30 flex justify-between items-center gap-2 opacity-0 group-hover:opacity-100 transition-all duration-200">
+                      
+                      {/* Reorder Controls */}
+                      {canReorder ? (
+                            <div className="flex items-center gap-1 bg-white/50 p-1 rounded-lg" onClick={(e) => e.stopPropagation()}>
+                                <button 
+                                    onClick={(e) => { e.stopPropagation(); moveResident(index, 'up'); }} 
+                                    disabled={isFirst}
+                                    className={`p-1 rounded-md transition-colors ${isFirst ? 'text-slate-400 cursor-not-allowed' : 'text-slate-600 hover:bg-white hover:text-brand-primary'}`}
+                                    title="Mover arriba"
+                                >
+                                    <ChevronUpIcon className="w-4 h-4" />
+                                </button>
+                                <button 
+                                    onClick={(e) => { e.stopPropagation(); moveResident(index, 'down'); }} 
+                                    disabled={isLast}
+                                    className={`p-1 rounded-md transition-colors ${isLast ? 'text-slate-400 cursor-not-allowed' : 'text-slate-600 hover:bg-white hover:text-brand-primary'}`}
+                                    title="Mover abajo"
+                                >
+                                    <ChevronDownIcon className="w-4 h-4" />
+                                </button>
+                            </div>
+                       ) : <div></div>}
+
+                      <div className="flex items-center gap-2">
                           <button 
-                              onClick={(e) => handleDeleteClick(resident, e)} 
-                              className="p-2 text-slate-600 hover:text-red-500 hover:bg-white rounded-lg transition-colors"
-                              title="Eliminar"
+                              onClick={(e) => handleOpenModalForEdit(resident, e)} 
+                              className="p-2 text-slate-600 hover:text-brand-secondary hover:bg-white rounded-lg transition-colors"
+                              title="Editar"
                           >
-                              <TrashIcon className="w-5 h-5" />
+                              <PencilIcon className="w-5 h-5" />
                           </button>
-                      )}
+                          {canAddOrDelete && (
+                              <button 
+                                  onClick={(e) => handleDeleteClick(resident, e)} 
+                                  className="p-2 text-slate-600 hover:text-red-500 hover:bg-white rounded-lg transition-colors"
+                                  title="Eliminar"
+                              >
+                                  <TrashIcon className="w-5 h-5" />
+                              </button>
+                          )}
+                      </div>
                   </div>
                 )}
               </div>
