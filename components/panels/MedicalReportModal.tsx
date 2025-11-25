@@ -57,12 +57,12 @@ const MedicalReportModal: React.FC<MedicalReportModalProps> = ({ user, resident,
     setUploading(true);
     
     try {
-        // 1. Definir la ruta del archivo: resident_{id}/{timestamp}_{filename}
-        // Sanear el nombre del archivo para evitar caracteres extraños
+        // 1. Define file path: resident_{id}/{timestamp}_{filename}
+        // Sanitize filename to prevent weird characters and spaces
         const sanitizedFileName = selectedFile.name.replace(/[^a-zA-Z0-9.-]/g, '_');
         const filePath = `resident_${resident.id}/${Date.now()}_${sanitizedFileName}`;
 
-        // 2. Subir al Bucket 'documentos'
+        // 2. Upload to the 'documentos' bucket in Supabase Storage
         const { error: uploadError } = await supabase.storage
             .from('documentos')
             .upload(filePath, selectedFile, {
@@ -71,32 +71,32 @@ const MedicalReportModal: React.FC<MedicalReportModalProps> = ({ user, resident,
             });
 
         if (uploadError) {
-            console.error('Error subiendo archivo:', uploadError);
-            throw uploadError;
+            console.error('Error uploading file to Storage:', uploadError);
+            throw new Error('No se pudo subir el archivo a la nube.');
         }
 
-        // 3. Obtener la URL pública
+        // 3. Get the public URL of the uploaded file
         const { data: { publicUrl } } = supabase.storage
             .from('documentos')
             .getPublicUrl(filePath);
 
-        // 4. Crear el objeto MedicalReport con la URL pública
+        // 4. Create the MedicalReport object with the public URL in fileData
         const newReport: MedicalReport = {
             id: `REP-${Date.now()}`,
             residentId: resident.id,
             fileName: selectedFile.name,
-            fileData: publicUrl, // Aquí guardamos la URL de Supabase
+            fileData: publicUrl, // Save the Supabase URL
             uploadDate: new Date().toISOString(),
         };
 
-        // 5. Guardar en Base de Datos (a través de MainLayout)
+        // 5. Save the reference to the Database
         onSaveReport(newReport);
         
-        // Limpiar estado
+        // Clear state
         setSelectedFile(null);
         
     } catch (error: any) {
-        console.error("Error en el proceso de subida:", error);
+        console.error("Error in the upload process:", error);
         alert(`Error al subir el archivo: ${error.message || 'Error desconocido'}`);
     } finally {
         setUploading(false);
@@ -104,11 +104,11 @@ const MedicalReportModal: React.FC<MedicalReportModalProps> = ({ user, resident,
   };
 
   const handleDownload = (report: MedicalReport) => {
-    // Si es una URL de Supabase o externa
+    // Check if it's a URL (cloud file) or Base64 (old local file)
     if (report.fileData.startsWith('http')) {
         window.open(report.fileData, '_blank');
     } else {
-        // Fallback para Base64 antiguo (si existiera)
+        // Compatibility for old files in Base64
         const link = document.createElement('a');
         link.href = report.fileData;
         link.download = report.fileName;
@@ -121,11 +121,11 @@ const MedicalReportModal: React.FC<MedicalReportModalProps> = ({ user, resident,
   const handleView = (report: MedicalReport) => {
     try {
       if (report.fileData.startsWith('http')) {
-         // Abrir URL directamente
+         // Open URL directly in a new tab
          window.open(report.fileData, '_blank');
       } else {
-         // Lógica antigua para Base64
-          const base64Data = report.fileData.split(',')[1];
+         // Improved old logic for Base64 visualization
+          const base64Data = report.fileData.includes(',') ? report.fileData.split(',')[1] : report.fileData;
           const byteCharacters = atob(base64Data);
           const byteNumbers = new Array(byteCharacters.length);
           for (let i = 0; i < byteCharacters.length; i++) {
@@ -137,7 +137,7 @@ const MedicalReportModal: React.FC<MedicalReportModalProps> = ({ user, resident,
           window.open(url, '_blank');
       }
     } catch (error) {
-      console.error("Error visualizando archivo:", error);
+      console.error("Error viewing file:", error);
       alert("No se pudo abrir el archivo. Intente descargarlo.");
     }
   };
