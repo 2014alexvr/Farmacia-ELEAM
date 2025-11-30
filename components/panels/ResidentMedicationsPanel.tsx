@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Resident, ResidentMedication, User, MedicalReport } from '../../types';
 import ArrowLeftIcon from '../icons/ArrowLeftIcon';
@@ -8,6 +9,7 @@ import MedicalReportModal from './MedicalReportModal';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import PrinterIcon from '../icons/PrinterIcon';
+import ShareIcon from '../icons/ShareIcon';
 
 interface ResidentMedicationsPanelProps {
   user: User;
@@ -80,7 +82,7 @@ const ResidentMedicationsPanel: React.FC<ResidentMedicationsPanelProps> = ({
     }
   };
 
-  const handleExportPDF = () => {
+  const generatePDF = () => {
     const doc = new jsPDF();
     
     doc.setFontSize(18);
@@ -130,7 +132,46 @@ const ResidentMedicationsPanel: React.FC<ResidentMedicationsPanelProps> = ({
       columnStyles: { 0: { cellWidth: 30 } }
     });
 
+    return doc;
+  };
+
+  const handleExportPDF = () => {
+    const doc = generatePDF();
     doc.save(`Medicamentos_${resident.name.replace(/\s+/g, '_')}.pdf`);
+  };
+
+  const handleShareList = async () => {
+    try {
+      const doc = generatePDF();
+      const fileName = `Medicamentos_${resident.name.replace(/\s+/g, '_')}.pdf`;
+      const pdfBlob = doc.output('blob');
+      const file = new File([pdfBlob], fileName, { type: 'application/pdf' });
+
+      if (navigator.share) {
+        const shareData: ShareData = {
+            files: [file],
+            title: `Medicamentos: ${resident.name}`,
+            text: `Adjunto listado de medicamentos de ${resident.name}.`,
+        };
+
+        // Check if file sharing is supported
+        if (navigator.canShare && navigator.canShare(shareData)) {
+            await navigator.share(shareData);
+        } else {
+            // Fallback for browsers that support share but not files
+            console.warn("El dispositivo soporta compartir, pero no archivos directamente. Descargando...");
+            doc.save(fileName);
+            alert("Su dispositivo no permite compartir archivos directamente desde la web. Se ha descargado el PDF para que pueda compartirlo manualmente.");
+        }
+      } else {
+        // Fallback for desktop/unsupported browsers
+        doc.save(fileName);
+        alert("Su dispositivo no soporta la función de compartir. Se ha descargado el PDF.");
+      }
+    } catch (error) {
+      console.error('Error al compartir/generar PDF:', error);
+      alert('Hubo un error al intentar generar o compartir el PDF.');
+    }
   };
 
   return (
@@ -148,12 +189,25 @@ const ResidentMedicationsPanel: React.FC<ResidentMedicationsPanelProps> = ({
             <p className="text-slate-500 font-medium mt-1">{resident.name}</p>
           </div>
           <div className="flex flex-wrap gap-3 print:hidden">
-              <button onClick={handleExportPDF} className="flex items-center px-5 py-2.5 bg-white border border-slate-200 text-slate-700 font-semibold rounded-xl hover:bg-slate-50 hover:text-brand-primary hover:border-brand-primary/30 transition-all shadow-sm active:scale-95">
-                  <PrinterIcon className="w-5 h-5 mr-2" />
-                  Exportar PDF
+              <button 
+                  onClick={handleExportPDF} 
+                  className="flex items-center px-5 py-2.5 bg-brand-primary text-white font-bold rounded-xl shadow-lg shadow-brand-primary/30 hover:bg-brand-dark transition-all active:scale-95"
+              >
+                  <PrinterIcon className="w-5 h-5 mr-2.5" />
+                  Descargar Listado de Medicamentos
               </button>
-              <button onClick={() => setIsReportModalOpen(true)} className="flex items-center px-5 py-2.5 bg-brand-secondary text-white font-semibold rounded-xl hover:bg-teal-400 transition-all shadow-lg shadow-teal-500/20 active:scale-95">
-                  <DocumentTextIcon className="w-5 h-5 mr-2" />
+              <button 
+                  onClick={handleShareList} 
+                  className="flex items-center px-5 py-2.5 bg-brand-primary text-white font-bold rounded-xl shadow-lg shadow-brand-primary/30 hover:bg-brand-dark transition-all active:scale-95"
+              >
+                  <ShareIcon className="w-5 h-5 mr-2.5" />
+                  Compartir Listado de Medicamentos
+              </button>
+              <button 
+                  onClick={() => setIsReportModalOpen(true)} 
+                  className="flex items-center px-5 py-2.5 bg-brand-primary text-white font-bold rounded-xl shadow-lg shadow-brand-primary/30 hover:bg-brand-dark transition-all active:scale-95"
+              >
+                  <DocumentTextIcon className="w-5 h-5 mr-2.5" />
                   Informe Médico
               </button>
           </div>

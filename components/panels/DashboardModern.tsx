@@ -51,7 +51,7 @@ const DashboardModern: React.FC<DashboardProps> = ({ user, residents, residentMe
             </div>
             <div>
                 <h1 className="text-4xl font-extrabold text-slate-800 tracking-tight">Bienvenido, {user.name}</h1>
-                <p className="text-slate-500 mt-2 font-medium text-lg">Panel de control del sistema FARMACIA ELEAM EL NAZARENO.</p>
+                <p className="text-slate-500 mt-2 font-medium text-lg">Panel de Control</p>
             </div>
         </div>
       </div>
