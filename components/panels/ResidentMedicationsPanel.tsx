@@ -1,4 +1,5 @@
 
+
 import React, { useState } from 'react';
 import { Resident, ResidentMedication, User, MedicalReport } from '../../types';
 import ArrowLeftIcon from '../icons/ArrowLeftIcon';
@@ -256,7 +257,11 @@ const ResidentMedicationsPanel: React.FC<ResidentMedicationsPanelProps> = ({
                 <th className="px-4 py-4 font-bold text-xs text-slate-400 uppercase tracking-wider text-center">Stock</th>
                 <th className="px-4 py-4 font-bold text-xs text-slate-400 uppercase tracking-wider text-center">Días con Stock</th>
                 <th className="px-4 py-4 font-bold text-xs text-slate-400 uppercase tracking-wider">Procedencia</th>
+                {/* Reordenamiento de Columnas */}
                 <th className="px-4 py-4 font-bold text-xs text-slate-400 uppercase tracking-wider">Fecha de Entrega</th>
+                <th className="px-4 py-4 font-bold text-xs text-slate-400 uppercase tracking-wider text-center">Adquisición Stock</th>
+                <th className="px-4 py-4 font-bold text-xs text-slate-400 uppercase tracking-wider">Fecha Adquisición Stock</th>
+                
                 <th className="px-4 py-4 font-bold text-xs text-slate-400 uppercase tracking-wider text-center print:hidden rounded-tr-xl">Acciones</th>
               </tr>
             </thead>
@@ -295,9 +300,18 @@ const ResidentMedicationsPanel: React.FC<ResidentMedicationsPanelProps> = ({
                               {med.provenance}
                           </span>
                       </td>
+                      
+                      {/* Celdas Reordenadas */}
                       <td className="p-4 text-slate-600 align-top font-medium text-base">
                         {med.deliveryDate ? new Date(med.deliveryDate).toLocaleDateString('es-CL', { timeZone: 'UTC' }) : 'N/A'}
                       </td>
+                      <td className="p-4 text-slate-600 align-top font-bold text-base text-center">
+                        {med.acquisitionQuantity ? med.acquisitionQuantity : '-'}
+                      </td>
+                      <td className="p-4 text-slate-600 align-top font-medium text-base">
+                        {med.acquisitionDate ? new Date(med.acquisitionDate).toLocaleDateString('es-CL', { timeZone: 'UTC' }) : 'N/A'}
+                      </td>
+
                       <td className="p-4 text-center align-top print:hidden">
                         {canDelete && (
                           <button onClick={() => setMedicationToDelete(med)} className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all opacity-0 group-hover:opacity-100">
@@ -313,7 +327,7 @@ const ResidentMedicationsPanel: React.FC<ResidentMedicationsPanelProps> = ({
                 })
               ) : (
                 <tr>
-                  <td colSpan={10} className="text-center p-12 text-slate-400 italic">Este residente no tiene medicamentos registrados.</td>
+                  <td colSpan={12} className="text-center p-12 text-slate-400 italic">Este residente no tiene medicamentos registrados.</td>
                 </tr>
               )}
             </tbody>

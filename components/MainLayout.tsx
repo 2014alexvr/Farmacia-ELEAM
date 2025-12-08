@@ -1,3 +1,5 @@
+
+
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { User, Panel, Resident, ResidentMedication, ManagedUser, MedicalReport } from '../types';
 import { ROLE_PANELS, MOCK_RESIDENTS, MOCK_RESIDENT_MEDICATIONS } from '../constants';
@@ -64,7 +66,6 @@ const MainLayout: React.FC<MainLayoutProps> = ({ user, onLogout, users, setUsers
           }));
           setResidents(mappedResidents);
         } else if (resError) {
-             // Fallback if display_order missing or other error, try basic select
              console.warn("Error fetching residents with sort, trying basic select:", resError.message);
              const { data: retryData } = await supabase.from('residents').select('*');
              if (retryData) {
@@ -81,22 +82,54 @@ const MainLayout: React.FC<MainLayoutProps> = ({ user, onLogout, users, setUsers
              }
         }
 
-        // Fetch Medications
+        // Fetch Medications & Calculate Virtual Stock (Read-Only Logic)
         const { data: medsData, error: medsError } = await supabase.from('resident_medications').select('*');
         if (medsData) {
-            const mappedMeds = medsData.map((m: any) => ({
-                id: m.id,
-                resident_id: m.resident_id, // keep for ref
-                residentId: m.resident_id,
-                medicationName: m.medication_name,
-                doseValue: m.dose_value,
-                doseUnit: m.dose_unit,
-                schedules: m.schedules,
-                stock: m.stock,
-                stockUnit: m.stock_unit,
-                provenance: m.provenance,
-                delivery_date: m.delivery_date
-            }));
+            const mappedMeds = medsData.map((m: any) => {
+                // 1. Get Base Stock (Initial Entry)
+                const baseStock = m.stock;
+                
+                // 2. Determine Reference Date (Start of Treatment/Entry)
+                // If stock_updated_at is null, we assume the medication was just created or legacy data (use today to avoid huge deductions)
+                const anchorDateStr = m.stock_updated_at || new Date().toISOString();
+                const anchorDate = new Date(anchorDateStr);
+                const today = new Date();
+                
+                // Normalize to midnight to count full days passed
+                anchorDate.setHours(0,0,0,0);
+                today.setHours(0,0,0,0);
+
+                // 3. Calculate Days Elapsed
+                // Difference in milliseconds
+                const diffTime = today.getTime() - anchorDate.getTime();
+                // Convert to days (floor ensures we don't deduct for the current partial day if desired, or use Math.max(0, ...))
+                const daysElapsed = Math.max(0, Math.floor(diffTime / (1000 * 60 * 60 * 24)));
+
+                // 4. Calculate Daily Consumption
+                const dailyExpense = m.schedules ? m.schedules.reduce((sum: number, s: any) => sum + (Number(s.quantity) || 0), 0) : 0;
+
+                // 5. Calculate Virtual Stock
+                // Virtual Stock = Base Stock - (Daily Consumption * Days Elapsed)
+                const consumed = dailyExpense * daysElapsed;
+                const virtualStock = Math.max(0, baseStock - consumed); // Prevent negative visual stock
+
+                return {
+                    id: m.id,
+                    resident_id: m.resident_id,
+                    residentId: m.resident_id,
+                    medicationName: m.medication_name,
+                    doseValue: m.dose_value,
+                    doseUnit: m.dose_unit,
+                    schedules: m.schedules,
+                    stock: virtualStock, // UI sees the Calculated Virtual Stock
+                    stockUnit: m.stock_unit,
+                    provenance: m.provenance,
+                    acquisitionDate: m.acquisition_date,
+                    acquisitionQuantity: m.acquisition_quantity,
+                    deliveryDate: m.delivery_date,
+                    stockUpdatedAt: m.stock_updated_at // Keep track of the reference date
+                };
+            });
             setResidentMedications(mappedMeds);
         } else if (medsError) {
              console.error("Error fetching medications", medsError.message);
@@ -227,32 +260,61 @@ const MainLayout: React.FC<MainLayoutProps> = ({ user, onLogout, users, setUsers
     try {
         let medToSave: ResidentMedication;
         
+        // This is a "Save" action, so we are resetting the reference date (Fecha de Ingreso/Actualización) to NOW.
+        const nowISO = new Date().toISOString();
+
         if ('id' in medicationData) {
-            medToSave = medicationData as ResidentMedication;
+            medToSave = { 
+                ...medicationData, 
+                stockUpdatedAt: nowISO // Reset anchor date on edit
+            } as ResidentMedication;
         } else {
             if (!selectedResident) return;
             medToSave = { 
                 ...medicationData, 
                 id: `RMED${Date.now()}`, 
-                residentId: selectedResident.id, 
+                residentId: selectedResident.id,
+                stockUpdatedAt: nowISO // Set initial anchor date
             };
         }
 
-        const dbPayload = {
+        // Base payload (fields that are guaranteed to exist)
+        const basePayload = {
             id: medToSave.id,
             resident_id: medToSave.residentId,
             medication_name: medToSave.medicationName,
             dose_value: medToSave.doseValue,
             dose_unit: medToSave.doseUnit,
             schedules: medToSave.schedules,
-            stock: medToSave.stock,
+            stock: medToSave.stock, // Saving the INPUT stock as the new base
             stock_unit: medToSave.stockUnit,
             provenance: medToSave.provenance,
-            delivery_date: medToSave.deliveryDate
+            delivery_date: medToSave.deliveryDate,
         };
 
-        const { error } = await supabase.from('resident_medications').upsert(dbPayload);
-        if (error) throw error;
+        // Full payload (including new columns that might not exist yet)
+        const fullPayload = {
+            ...basePayload,
+            acquisition_date: medToSave.acquisitionDate,
+            acquisition_quantity: medToSave.acquisitionQuantity,
+            stock_updated_at: medToSave.stockUpdatedAt
+        };
+
+        // Try upserting with ALL fields first
+        const { error } = await supabase.from('resident_medications').upsert(fullPayload);
+        
+        if (error) {
+            // Check if error is related to missing columns/schema
+            // PGRST204 is often used for column not found, but we check message too
+            if (error.message.includes('column') || error.code === '42703' || error.message.includes('schema cache') || error.code === 'PGRST204') {
+                 console.warn("Schema mismatch detected (missing columns). Retrying with base payload.", error.message);
+                 // Fallback: save without the new columns
+                 const { error: retryError } = await supabase.from('resident_medications').upsert(basePayload);
+                 if (retryError) throw retryError;
+            } else {
+                throw error;
+            }
+        }
 
         setResidentMedications(prev => {
              if ('id' in medicationData) {
@@ -264,7 +326,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ user, onLogout, users, setUsers
 
     } catch (e: any) {
         console.error("Error saving medication:", e.message || e);
-        alert("Error al guardar medicamento.");
+        alert("Error al guardar medicamento: " + (e.message || "Error desconocido"));
     }
   }, [selectedResident]);
 

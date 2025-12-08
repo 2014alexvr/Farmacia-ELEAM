@@ -83,7 +83,10 @@ export interface ResidentMedication {
   stock: number;
   stockUnit: string;
   provenance: Provenance;
+  acquisitionDate?: string; // YYYY-MM-DD format
+  acquisitionQuantity?: number; // Nueva columna para la cantidad
   deliveryDate?: string; // YYYY-MM-DD format
+  stockUpdatedAt?: string; // ISO string for virtual stock calculation
 }
 
 export interface LowStockItem {

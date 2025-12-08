@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useEffect } from 'react';
 import { ResidentMedication, Provenance, MedicationSchedule } from '../../types';
 import CloseIcon from '../icons/CloseIcon';
@@ -29,6 +30,8 @@ const AddMedicationModalModern: React.FC<AddMedicationModalProps> = ({ onClose, 
   const [stock, setStock] = useState('');
   const [stockUnit, setStockUnit] = useState('Comp');
   const [provenance, setProvenance] = useState<Provenance>('Cesfam');
+  const [acquisitionDate, setAcquisitionDate] = useState('');
+  const [acquisitionQuantity, setAcquisitionQuantity] = useState(''); // Nuevo estado
   const [deliveryDate, setDeliveryDate] = useState('');
 
   const isEditing = !!medicationToEdit;
@@ -50,6 +53,8 @@ const AddMedicationModalModern: React.FC<AddMedicationModalProps> = ({ onClose, 
       setStock(String(medicationToEdit.stock));
       setStockUnit(medicationToEdit.stockUnit);
       setProvenance(medicationToEdit.provenance);
+      setAcquisitionDate(medicationToEdit.acquisitionDate || '');
+      setAcquisitionQuantity(medicationToEdit.acquisitionQuantity ? String(medicationToEdit.acquisitionQuantity) : ''); // Cargar valor
       setDeliveryDate(medicationToEdit.deliveryDate || '');
     }
   }, [isEditing, medicationToEdit]);
@@ -89,6 +94,8 @@ const AddMedicationModalModern: React.FC<AddMedicationModalProps> = ({ onClose, 
       stock: Number(stock),
       stockUnit,
       provenance,
+      acquisitionDate: acquisitionDate || undefined,
+      acquisitionQuantity: acquisitionQuantity ? Number(acquisitionQuantity) : undefined, // Enviar valor
       deliveryDate: deliveryDate || undefined,
     };
     
@@ -215,57 +222,101 @@ const AddMedicationModalModern: React.FC<AddMedicationModalProps> = ({ onClose, 
             {/* SECCIÓN 3: GESTIÓN DE INVENTARIO (KPI Cards) */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 
-                {/* Stock Input */}
-                <div className="md:col-span-1 space-y-1">
-                    <label className={labelStyle}>Stock Físico Actual</label>
-                    <div className="flex shadow-sm rounded-2xl overflow-hidden">
+                {/* Columna 1: Inputs de Cantidad y Stock */}
+                <div className="md:col-span-1 space-y-4">
+                    {/* Cant. Adquirida (Movido aquí) */}
+                    <div className="space-y-1">
+                        <label className={labelStyle}>Cant. Adquirida</label>
                         <input 
                             type="number" 
-                            placeholder="0" 
-                            value={stock} 
-                            onChange={e => setStock(e.target.value)} 
-                            className={inputLeft} 
-                            required
+                            value={acquisitionQuantity} 
+                            onChange={e => setAcquisitionQuantity(e.target.value)} 
+                            className={inputRounded}
+                            placeholder="0"
                         />
-                        <select value={stockUnit} onChange={e => setStockUnit(e.target.value)} className={`${inputRight} w-24 text-xs border-l border-slate-600`}>
-                            {POSOLOGY_UNITS.map(u => <option key={u} value={u}>{u}</option>)}
-                        </select>
+                    </div>
+
+                    {/* Stock Físico Actual */}
+                    <div className="space-y-1">
+                        <label className={labelStyle}>Stock Físico Actual</label>
+                        <div className="flex shadow-sm rounded-2xl overflow-hidden">
+                            <input 
+                                type="number" 
+                                placeholder="0" 
+                                value={stock} 
+                                onChange={e => setStock(e.target.value)} 
+                                className={inputLeft} 
+                                required
+                            />
+                            <select value={stockUnit} onChange={e => setStockUnit(e.target.value)} className={`${inputRight} w-24 text-xs border-l border-slate-600`}>
+                                {POSOLOGY_UNITS.map(u => <option key={u} value={u}>{u}</option>)}
+                            </select>
+                        </div>
                     </div>
                 </div>
 
-                {/* Tarjetas Calculadas (Gasto y Días) */}
+                {/* Columna 2 y 3: Fecha + Tarjetas KPI */}
                 <div className="md:col-span-2 grid grid-cols-2 gap-4">
-                    <div className="bg-slate-800 p-4 rounded-3xl border border-slate-700 flex flex-col justify-center relative overflow-hidden group shadow-lg">
-                        <div className="absolute right-0 top-0 p-3 opacity-10 group-hover:opacity-20 transition-opacity">
-                            <PillIcon className="w-12 h-12 text-white" />
+                    
+                    {/* Sub-Columna 1: Fecha + Gasto Diario */}
+                    <div className="space-y-4 flex flex-col">
+                        {/* Fecha Adquisición (Movido aquí) */}
+                        <div className="space-y-1">
+                            <label className={labelStyle}>Fecha Adquisición</label>
+                            <div className="relative">
+                                <input 
+                                    type="date" 
+                                    value={acquisitionDate} 
+                                    onChange={e => setAcquisitionDate(e.target.value)} 
+                                    className={inputRounded}
+                                    style={{ colorScheme: 'dark' }}
+                                />
+                            </div>
                         </div>
-                        <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Gasto Diario Total</p>
-                        <div className="flex items-baseline gap-1">
-                            <span className="text-3xl font-extrabold text-white tracking-tight">{dailyExpense > 0 ? dailyExpense : '-'}</span>
-                            <span className="text-xs text-slate-400 font-medium">{dailyExpense > 0 ? (schedules.find(s=>Number(s.quantity) > 0)?.unit || 'Unid') : ''}</span>
+
+                        {/* Tarjeta Gasto Diario */}
+                        <div className="bg-slate-800 p-4 rounded-3xl border border-slate-700 flex flex-col justify-center relative overflow-hidden group shadow-lg flex-1">
+                            <div className="absolute right-0 top-0 p-3 opacity-10 group-hover:opacity-20 transition-opacity">
+                                <PillIcon className="w-12 h-12 text-white" />
+                            </div>
+                            <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Gasto Diario Total</p>
+                            <div className="flex items-baseline gap-1">
+                                <span className="text-3xl font-extrabold text-white tracking-tight">{dailyExpense > 0 ? dailyExpense : '-'}</span>
+                                <span className="text-xs text-slate-400 font-medium">{dailyExpense > 0 ? (schedules.find(s=>Number(s.quantity) > 0)?.unit || 'Unid') : ''}</span>
+                            </div>
                         </div>
                     </div>
 
-                    <div className={`p-4 rounded-3xl border flex flex-col justify-center relative overflow-hidden transition-all duration-300 shadow-lg ${
-                        stockDays < lowStockThreshold && stockDays > 0 ? 'bg-red-500 border-red-600 shadow-red-500/30' : 
-                        stockDays >= lowStockThreshold ? 'bg-emerald-500 border-emerald-600 shadow-emerald-500/30' : 
-                        'bg-slate-100 border-slate-200'
-                    }`}>
-                        <p className={`text-[10px] font-bold uppercase mb-1 ${stockDays > 0 ? 'text-white/80' : 'text-slate-400'}`}>Cobertura Estimada</p>
-                        <div className="flex items-baseline gap-1">
-                            <span className={`text-3xl font-extrabold tracking-tight ${stockDays > 0 ? 'text-white' : 'text-slate-400'}`}>
-                                {stockDays > 0 ? stockDays : '-'}
-                            </span>
-                            <span className={`text-xs font-medium ${stockDays > 0 ? 'text-white/80' : 'text-slate-400'}`}>Días</span>
+                    {/* Sub-Columna 2: Espaciador + Cobertura */}
+                    <div className="space-y-4 flex flex-col">
+                        {/* Espaciador Invisible para alineación en Desktop (simula altura de input) */}
+                        <div className="space-y-1 invisible hidden md:block" aria-hidden="true">
+                            <label className={labelStyle}>Spacer</label>
+                            <input className={inputRounded} disabled />
                         </div>
-                        {stockDays < lowStockThreshold && stockDays > 0 && (
-                             <span className="absolute bottom-3 right-3 bg-white/20 px-2 py-1 rounded-lg text-[9px] font-bold text-white tracking-wide backdrop-blur-sm">CRÍTICO</span>
-                        )}
+
+                        {/* Tarjeta Cobertura */}
+                        <div className={`p-4 rounded-3xl border flex flex-col justify-center relative overflow-hidden transition-all duration-300 shadow-lg flex-1 ${
+                            stockDays < lowStockThreshold && stockDays > 0 ? 'bg-red-500 border-red-600 shadow-red-500/30' : 
+                            stockDays >= lowStockThreshold ? 'bg-emerald-500 border-emerald-600 shadow-emerald-500/30' : 
+                            'bg-slate-100 border-slate-200'
+                        }`}>
+                            <p className={`text-[10px] font-bold uppercase mb-1 ${stockDays > 0 ? 'text-white/80' : 'text-slate-400'}`}>Cobertura Estimada</p>
+                            <div className="flex items-baseline gap-1">
+                                <span className={`text-3xl font-extrabold tracking-tight ${stockDays > 0 ? 'text-white' : 'text-slate-400'}`}>
+                                    {stockDays > 0 ? stockDays : '-'}
+                                </span>
+                                <span className={`text-xs font-medium ${stockDays > 0 ? 'text-white/80' : 'text-slate-400'}`}>Días</span>
+                            </div>
+                            {stockDays < lowStockThreshold && stockDays > 0 && (
+                                <span className="absolute bottom-3 right-3 bg-white/20 px-2 py-1 rounded-lg text-[9px] font-bold text-white tracking-wide backdrop-blur-sm">CRÍTICO</span>
+                            )}
+                        </div>
                     </div>
                 </div>
             </div>
             
-            {/* SECCIÓN 4: META DATA */}
+            {/* SECCIÓN 4: META DATA (Restante) */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pb-4">
                  <div className="space-y-1">
                     <label className={labelStyle}>Procedencia</label>
@@ -273,6 +324,7 @@ const AddMedicationModalModern: React.FC<AddMedicationModalProps> = ({ onClose, 
                         {PROVENANCE_OPTIONS.map(opt => <option key={opt} value={opt}>{opt}</option>)}
                     </select>
                  </div>
+                 
                  <div className="space-y-1">
                     <label className={labelStyle}>Próxima Entrega (Opcional)</label>
                     <div className="relative">
