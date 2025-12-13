@@ -248,6 +248,8 @@ export const ROLE_PANELS: Record<UserRole, Panel[]> = {
     Panel.GeneralInventory,
     Panel.SummaryCesfam,
     Panel.SummaryIndividualStock,
+    Panel.SummaryMentalHealth, // New
+    Panel.SummaryPurchases,    // New
     Panel.AdminApp,
   ],
   [UserRole.Director]: [

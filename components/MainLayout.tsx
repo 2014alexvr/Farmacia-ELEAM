@@ -1,5 +1,3 @@
-
-
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { User, Panel, Resident, ResidentMedication, ManagedUser, MedicalReport } from '../types';
 import { ROLE_PANELS, MOCK_RESIDENTS, MOCK_RESIDENT_MEDICATIONS } from '../constants';
@@ -43,9 +41,8 @@ const MainLayout: React.FC<MainLayoutProps> = ({ user, onLogout, users, setUsers
   // GLOBAL SETTING: Low Stock Threshold (default 7 days)
   const [lowStockThreshold, setLowStockThreshold] = useState<number>(7);
 
-  // Initial Data Fetch from Supabase
-  useEffect(() => {
-    const fetchData = async () => {
+  // Función centralizada para cargar datos
+  const fetchData = useCallback(async () => {
       setLoadingData(true);
       try {
         // Fetch Settings
@@ -83,35 +80,35 @@ const MainLayout: React.FC<MainLayoutProps> = ({ user, onLogout, users, setUsers
         }
 
         // Fetch Medications & Calculate Virtual Stock (Read-Only Logic)
-        const { data: medsData, error: medsError } = await supabase.from('resident_medications').select('*');
+        // Fix: Removed .order('orden_personalizado') to avoid crash if column is missing
+        const { data: medsData, error: medsError } = await supabase
+            .from('resident_medications')
+            .select('*');
+
         if (medsData) {
             const mappedMeds = medsData.map((m: any) => {
                 // 1. Get Base Stock (Initial Entry)
                 const baseStock = m.stock;
                 
                 // 2. Determine Reference Date (Start of Treatment/Entry)
-                // If stock_updated_at is null, we assume the medication was just created or legacy data (use today to avoid huge deductions)
                 const anchorDateStr = m.stock_updated_at || new Date().toISOString();
                 const anchorDate = new Date(anchorDateStr);
-                const today = new Date();
+                const today = new Date(); 
                 
-                // Normalize to midnight to count full days passed
+                // 3. Normalizar a Medianoche
                 anchorDate.setHours(0,0,0,0);
                 today.setHours(0,0,0,0);
 
-                // 3. Calculate Days Elapsed
-                // Difference in milliseconds
+                // 4. Calcular Días Transcurridos
                 const diffTime = today.getTime() - anchorDate.getTime();
-                // Convert to days (floor ensures we don't deduct for the current partial day if desired, or use Math.max(0, ...))
                 const daysElapsed = Math.max(0, Math.floor(diffTime / (1000 * 60 * 60 * 24)));
 
-                // 4. Calculate Daily Consumption
+                // 5. Calculate Daily Consumption
                 const dailyExpense = m.schedules ? m.schedules.reduce((sum: number, s: any) => sum + (Number(s.quantity) || 0), 0) : 0;
 
-                // 5. Calculate Virtual Stock
-                // Virtual Stock = Base Stock - (Daily Consumption * Days Elapsed)
+                // 6. Calculate Virtual Stock
                 const consumed = dailyExpense * daysElapsed;
-                const virtualStock = Math.max(0, baseStock - consumed); // Prevent negative visual stock
+                const virtualStock = Math.max(0, baseStock - consumed);
 
                 return {
                     id: m.id,
@@ -121,19 +118,23 @@ const MainLayout: React.FC<MainLayoutProps> = ({ user, onLogout, users, setUsers
                     doseValue: m.dose_value,
                     doseUnit: m.dose_unit,
                     schedules: m.schedules,
-                    stock: virtualStock, // UI sees the Calculated Virtual Stock
+                    stock: virtualStock, 
                     stockUnit: m.stock_unit,
                     provenance: m.provenance,
                     acquisitionDate: m.acquisition_date,
                     acquisitionQuantity: m.acquisition_quantity,
                     deliveryDate: m.delivery_date,
-                    stockUpdatedAt: m.stock_updated_at // Keep track of the reference date
+                    stockUpdatedAt: m.stock_updated_at,
+                    displayOrder: m.orden_personalizado || 0
                 };
             });
+            // Client-side sort as fallback
+            mappedMeds.sort((a: any, b: any) => (a.displayOrder || 0) - (b.displayOrder || 0));
             setResidentMedications(mappedMeds);
         } else if (medsError) {
              console.error("Error fetching medications", medsError.message);
-             if (residentMedications.length === 0) setResidentMedications(MOCK_RESIDENT_MEDICATIONS);
+             // If fetch fails, show nothing or empty to avoid confusing states, but keep mock logic if needed for dev
+             if (residentMedications.length === 0) setResidentMedications([]);
         }
 
         // Fetch Reports
@@ -154,10 +155,35 @@ const MainLayout: React.FC<MainLayoutProps> = ({ user, onLogout, users, setUsers
       } finally {
         setLoadingData(false);
       }
-    };
-
+  }, [residents.length, residentMedications.length]); 
+  
+  // Initial Data Fetch from Supabase
+  useEffect(() => {
     fetchData();
-  }, []);
+  }, []); 
+
+  // AUTOMATIC DATE CHANGE DETECTOR
+  useEffect(() => {
+      const checkDateChange = () => {
+          const now = new Date();
+          const currentDay = now.getDate();
+          const lastCheckedDayStr = localStorage.getItem('app_last_day_checked');
+          const lastCheckedDay = lastCheckedDayStr ? parseInt(lastCheckedDayStr, 10) : null;
+
+          if (lastCheckedDay !== null && lastCheckedDay !== currentDay) {
+              console.log("Cambio de día detectado (Medianoche). Recalculando stock...");
+              fetchData();
+          }
+          
+          localStorage.setItem('app_last_day_checked', String(currentDay));
+      };
+
+      const intervalId = setInterval(checkDateChange, 60000); 
+      checkDateChange();
+
+      return () => clearInterval(intervalId);
+  }, [fetchData]);
+
 
   const handleUpdateThreshold = async (newThreshold: number) => {
     setLowStockThreshold(newThreshold);
@@ -167,6 +193,55 @@ const MainLayout: React.FC<MainLayoutProps> = ({ user, onLogout, users, setUsers
         console.error("Error saving setting", e);
     }
   };
+
+  // --- RESTORE DATA FUNCTIONALITY ---
+  const handleRestoreData = useCallback(async () => {
+    if (!window.confirm("¿Estás seguro de que deseas restaurar los datos iniciales? Se recuperarán los residentes y medicamentos predeterminados.")) return;
+
+    setLoadingData(true);
+    try {
+        // 1. Restore Residents
+        const residentsPayload = MOCK_RESIDENTS.map(r => ({
+            id: r.id,
+            name: r.name,
+            rut: r.rut,
+            date_of_birth: r.dateOfBirth,
+            display_order: r.id 
+        }));
+        
+        const { error: resError } = await supabase.from('residents').upsert(residentsPayload);
+        if (resError) throw resError;
+
+        // 2. Restore Medications
+        const medsPayload = MOCK_RESIDENT_MEDICATIONS.map((m, index) => ({
+            id: m.id,
+            resident_id: m.residentId,
+            medication_name: m.medicationName,
+            dose_value: m.doseValue,
+            dose_unit: m.doseUnit,
+            schedules: m.schedules,
+            stock: m.stock,
+            stock_unit: m.stockUnit,
+            provenance: m.provenance,
+            delivery_date: m.deliveryDate,
+            stock_updated_at: new Date().toISOString()
+            // Not including 'orden_personalizado' to avoid errors if column is missing
+        }));
+
+        const { error: medError } = await supabase.from('resident_medications').upsert(medsPayload);
+        if (medError) throw medError;
+
+        alert("Restauración completada correctamente.");
+        fetchData(); // Reload data
+
+    } catch (e: any) {
+        console.error("Error restoring data:", e);
+        alert("Ocurrió un error durante la restauración: " + (e.message || e));
+    } finally {
+        setLoadingData(false);
+    }
+  }, [fetchData]);
+
 
   const handleSelectResident = (resident: Resident) => { setSelectedResident(resident); setActivePanel(Panel.ResidentMedications); };
   const handleBackToResidents = () => { setSelectedResident(null); setActivePanel(Panel.Residents); };
@@ -178,14 +253,12 @@ const MainLayout: React.FC<MainLayoutProps> = ({ user, onLogout, users, setUsers
         const isNew = !('id' in residentData);
 
         if (isNew) {
-             // Calculate new order
              const maxOrder = residents.length > 0 ? Math.max(...residents.map(r => r.displayOrder || 0)) : 0;
              residentToSave = { ...residentData, id: Date.now(), displayOrder: maxOrder + 1 }; 
         } else {
             residentToSave = residentData as Resident;
         }
 
-        // Optimistic Update
         setResidents(prev => {
             if (isNew) {
                 return [...prev, residentToSave];
@@ -201,14 +274,12 @@ const MainLayout: React.FC<MainLayoutProps> = ({ user, onLogout, users, setUsers
             date_of_birth: residentToSave.dateOfBirth,
         };
 
-        // Try with display_order first
         const { error } = await supabase.from('residents').upsert({
             ...basePayload,
             display_order: residentToSave.displayOrder ?? 0
         });
 
         if (error) {
-             // Retry without display_order if it fails (e.g. column missing)
              console.warn("Error saving resident with order, retrying basic:", error.message);
              const { error: retryError } = await supabase.from('residents').upsert(basePayload);
              if (retryError) throw retryError;
@@ -235,9 +306,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ user, onLogout, users, setUsers
   }, []);
 
   const handleReorderResidents = useCallback(async (reorderedResidents: Resident[]) => {
-      // Optimistic update
       setResidents(reorderedResidents);
-
       try {
           const upsertPayload = reorderedResidents.map((r, index) => ({
               id: r.id,
@@ -246,12 +315,10 @@ const MainLayout: React.FC<MainLayoutProps> = ({ user, onLogout, users, setUsers
               date_of_birth: r.dateOfBirth,
               display_order: index
           }));
-
           const { error } = await supabase.from('residents').upsert(upsertPayload);
           if (error) throw error;
-          
       } catch (e: any) {
-          console.warn("Error reordering residents (likely missing column):", e.message || e);
+          console.warn("Error reordering residents:", e.message || e);
       }
   }, []);
 
@@ -259,26 +326,32 @@ const MainLayout: React.FC<MainLayoutProps> = ({ user, onLogout, users, setUsers
   const handleSaveMedication = useCallback(async (medicationData: Omit<ResidentMedication, 'id' | 'residentId'> | ResidentMedication) => {
     try {
         let medToSave: ResidentMedication;
-        
-        // This is a "Save" action, so we are resetting the reference date (Fecha de Ingreso/Actualización) to NOW.
         const nowISO = new Date().toISOString();
+        const stockUpdatedAt = (medicationData as any).stockUpdatedAt || nowISO;
 
         if ('id' in medicationData) {
             medToSave = { 
                 ...medicationData, 
-                stockUpdatedAt: nowISO // Reset anchor date on edit
+                stockUpdatedAt: stockUpdatedAt
             } as ResidentMedication;
         } else {
             if (!selectedResident) return;
+            
+            // Calculate Order
+            const currentResidentMeds = residentMedications.filter(m => m.residentId === selectedResident.id);
+            const maxOrder = currentResidentMeds.length > 0 
+                ? Math.max(...currentResidentMeds.map(m => m.displayOrder || 0)) 
+                : 0;
+
             medToSave = { 
                 ...medicationData, 
                 id: `RMED${Date.now()}`, 
                 residentId: selectedResident.id,
-                stockUpdatedAt: nowISO // Set initial anchor date
+                stockUpdatedAt: stockUpdatedAt,
+                displayOrder: maxOrder + 1
             };
         }
 
-        // Base payload (fields that are guaranteed to exist)
         const basePayload = {
             id: medToSave.id,
             resident_id: medToSave.residentId,
@@ -286,29 +359,25 @@ const MainLayout: React.FC<MainLayoutProps> = ({ user, onLogout, users, setUsers
             dose_value: medToSave.doseValue,
             dose_unit: medToSave.doseUnit,
             schedules: medToSave.schedules,
-            stock: medToSave.stock, // Saving the INPUT stock as the new base
+            stock: medToSave.stock,
             stock_unit: medToSave.stockUnit,
             provenance: medToSave.provenance,
             delivery_date: medToSave.deliveryDate,
         };
 
-        // Full payload (including new columns that might not exist yet)
         const fullPayload = {
             ...basePayload,
             acquisition_date: medToSave.acquisitionDate,
             acquisition_quantity: medToSave.acquisitionQuantity,
-            stock_updated_at: medToSave.stockUpdatedAt
+            stock_updated_at: medToSave.stockUpdatedAt,
+            orden_personalizado: medToSave.displayOrder ?? 0 // Use custom column
         };
 
-        // Try upserting with ALL fields first
         const { error } = await supabase.from('resident_medications').upsert(fullPayload);
         
         if (error) {
-            // Check if error is related to missing columns/schema
-            // PGRST204 is often used for column not found, but we check message too
-            if (error.message.includes('column') || error.code === '42703' || error.message.includes('schema cache') || error.code === 'PGRST204') {
-                 console.warn("Schema mismatch detected (missing columns). Retrying with base payload.", error.message);
-                 // Fallback: save without the new columns
+            if (error.message.includes('column') || error.code === '42703') {
+                 console.warn("Schema mismatch. Retrying base.", error.message);
                  const { error: retryError } = await supabase.from('resident_medications').upsert(basePayload);
                  if (retryError) throw retryError;
             } else {
@@ -316,19 +385,13 @@ const MainLayout: React.FC<MainLayoutProps> = ({ user, onLogout, users, setUsers
             }
         }
 
-        setResidentMedications(prev => {
-             if ('id' in medicationData) {
-                 return prev.map(m => m.id === medicationData.id ? medToSave : m);
-             } else {
-                 return [...prev, medToSave];
-             }
-        });
+        fetchData(); 
 
     } catch (e: any) {
         console.error("Error saving medication:", e.message || e);
         alert("Error al guardar medicamento: " + (e.message || "Error desconocido"));
     }
-  }, [selectedResident]);
+  }, [selectedResident, residentMedications, fetchData]);
 
   const handleDeleteMedication = useCallback(async (medicationId: string) => {
     try {
@@ -341,6 +404,40 @@ const MainLayout: React.FC<MainLayoutProps> = ({ user, onLogout, users, setUsers
     }
   }, []);
 
+  const handleReorderMedications = useCallback(async (reorderedMeds: ResidentMedication[]) => {
+      setResidentMedications(prev => {
+          const residentId = reorderedMeds[0]?.residentId;
+          if (!residentId) return prev;
+          const otherMeds = prev.filter(m => m.residentId !== residentId);
+          const updatedMeds = reorderedMeds.map((m, idx) => ({ ...m, displayOrder: idx }));
+          return [...otherMeds, ...updatedMeds];
+      });
+
+      try {
+          const upsertPayload = reorderedMeds.map((m, index) => ({
+              id: m.id,
+              resident_id: m.residentId,
+              medication_name: m.medicationName,
+              dose_value: m.doseValue,
+              dose_unit: m.doseUnit,
+              schedules: m.schedules,
+              stock: m.stock, 
+              stock_unit: m.stockUnit,
+              provenance: m.provenance,
+              delivery_date: m.deliveryDate,
+              acquisition_date: m.acquisitionDate,
+              acquisition_quantity: m.acquisitionQuantity,
+              stock_updated_at: m.stockUpdatedAt,
+              orden_personalizado: index
+          }));
+
+          const { error } = await supabase.from('resident_medications').upsert(upsertPayload);
+          if (error) console.warn("Error reordering medications:", error.message);
+      } catch (e: any) {
+           console.error("Unexpected error reordering medications:", e);
+      }
+  }, []);
+
   // --- Reports CRUD ---
   const handleSaveReport = useCallback(async (report: MedicalReport) => {
     try {
@@ -351,10 +448,8 @@ const MainLayout: React.FC<MainLayoutProps> = ({ user, onLogout, users, setUsers
             file_data: report.fileData,
             upload_date: report.uploadDate
         };
-
         const { error } = await supabase.from('medical_reports').insert(dbPayload);
         if (error) throw error;
-
         setMedicalReports(prev => [report, ...prev]);
     } catch (e: any) {
         console.error("Error saving report:", e.message || e);
@@ -373,29 +468,21 @@ const MainLayout: React.FC<MainLayoutProps> = ({ user, onLogout, users, setUsers
     }
   }, []);
 
-  // --- Users CRUD & Reordering ---
+  // --- Users CRUD ---
   const handleSaveUser = useCallback(async (userData: Omit<ManagedUser, 'id'> | ManagedUser) => {
     try {
         let userToSave: ManagedUser;
         const isNew = !('id' in userData);
-
         if (!isNew) {
             userToSave = userData as ManagedUser;
         } else {
-            // Assign a default display order (end of list)
             const maxOrder = users.length > 0 ? Math.max(...users.map(u => u.displayOrder || 0)) : 0;
             userToSave = { ...userData, id: `user-${Date.now()}`, displayOrder: maxOrder + 1 };
         }
-
-        // 1. OPTIMISTIC UI UPDATE: Update local state immediately
         setUsers(prevUsers => {
-            if (isNew) {
-                return [...prevUsers, userToSave];
-            } else {
-                return prevUsers.map(u => u.id === userToSave.id ? userToSave : u);
-            }
+            if (isNew) return [...prevUsers, userToSave];
+            return prevUsers.map(u => u.id === userToSave.id ? userToSave : u);
         });
-
         const basePayload = {
             id: userToSave.id,
             role: userToSave.role,
@@ -403,47 +490,35 @@ const MainLayout: React.FC<MainLayoutProps> = ({ user, onLogout, users, setUsers
             password: userToSave.password,
             permissions: userToSave.permissions,
         };
-
-        // Attempt with display_order first
         const { error } = await supabase.from('app_users').upsert({
             ...basePayload,
             display_order: userToSave.displayOrder ?? 0
         });
-
         if (error) {
-            // If error (likely missing column), try without it
-            console.warn("Error saving user with display_order, retrying without...", error.message);
             const { error: retryError } = await supabase.from('app_users').upsert(basePayload);
             if (retryError) throw retryError;
         }
-        
     } catch (e: any) {
         console.error("Error saving user:", e.message || e);
-        alert("Error al guardar usuario: " + (e.message || "Error desconocido"));
+        alert("Error al guardar usuario.");
     }
   }, [users, setUsers]);
 
   const handleDeleteUser = useCallback(async (userId: string) => {
     try {
-        // Optimistic Delete
         setUsers(prev => prev.filter(u => u.id !== userId));
-
         const { error } = await supabase.from('app_users').delete().eq('id', userId);
         if (error) throw error;
-        
     } catch (e: any) {
         console.error("Error deleting user:", e.message || e);
         alert("Error al eliminar usuario.");
-        await onUsersMutated(); // Revert if failed
+        await onUsersMutated();
     }
   }, [setUsers, onUsersMutated]);
 
   const handleReorderUsers = useCallback(async (reorderedUsers: ManagedUser[]) => {
-      // Optimistic update
       setUsers(reorderedUsers);
-
       try {
-          // Prepare bulk upsert payload
           const upsertPayload = reorderedUsers.map((u, index) => ({
               id: u.id,
               role: u.role,
@@ -452,13 +527,10 @@ const MainLayout: React.FC<MainLayoutProps> = ({ user, onLogout, users, setUsers
               permissions: u.permissions,
               display_order: index
           }));
-
           const { error } = await supabase.from('app_users').upsert(upsertPayload);
           if (error) throw error;
-          
       } catch (e: any) {
-          console.warn("Error reordering users (likely missing column 'display_order'):", e.message || e);
-          // Not critical enough to alert user and block UI, just log warning
+          console.warn("Error reordering users:", e.message || e);
       }
   }, [setUsers]);
 
@@ -466,7 +538,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ user, onLogout, users, setUsers
   const handleConfirmLogout = () => { setIsLogoutModalOpen(false); onLogout(); };
 
   const renderPanel = () => {
-    if (loadingData && activePanel !== Panel.AdminApp) {
+    if (loadingData && activePanel !== Panel.AdminApp && residentMedications.length === 0) {
          return (
              <div className="flex h-full items-center justify-center">
                  <div className="flex flex-col items-center">
@@ -478,14 +550,19 @@ const MainLayout: React.FC<MainLayoutProps> = ({ user, onLogout, users, setUsers
     }
 
     if (activePanel === Panel.ResidentMedications && selectedResident) {
+      const residentMeds = residentMedications
+        .filter(m => m.residentId === selectedResident.id)
+        .sort((a, b) => (a.displayOrder || 0) - (b.displayOrder || 0));
+
       return (
         <ResidentMedicationsPanel
           user={user}
           resident={selectedResident}
           onBack={handleBackToResidents}
-          medications={residentMedications.filter(m => m.residentId === selectedResident.id)}
+          medications={residentMeds}
           onSaveMedication={handleSaveMedication}
           onDeleteMedication={handleDeleteMedication}
+          onReorderMedications={handleReorderMedications} 
           medicalReports={medicalReports.filter(r => r.residentId === selectedResident.id)}
           onSaveReport={handleSaveReport}
           onDeleteReport={handleDeleteReport}
@@ -543,6 +620,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ user, onLogout, users, setUsers
                   onSaveUser={handleSaveUser} 
                   onDeleteUser={handleDeleteUser}
                   onReorderUsers={handleReorderUsers}
+                  onRestoreData={handleRestoreData}
                />;
       default: 
         return (

@@ -15,10 +15,11 @@ const App: React.FC = () => {
   // Centralized fetch function wrapped in useCallback
   const fetchUsers = useCallback(async () => {
     try {
-      // Remove .order('display_order') to prevent crash if column doesn't exist yet
+      // Ahora ordenamos por display_order ya que la columna existe en la BD
       const { data, error } = await supabase
         .from('app_users')
-        .select('*');
+        .select('*')
+        .order('display_order', { ascending: true });
 
       if (error) {
         console.error('Error fetching users from Supabase:', error.message || error);
@@ -34,7 +35,7 @@ const App: React.FC = () => {
               displayOrder: u.display_order
           }));
           
-          // Sort client-side to be safe
+          // Sort client-side extra safety
           mappedUsers.sort((a, b) => (a.displayOrder || 0) - (b.displayOrder || 0));
           
           setManagedUsers(mappedUsers);

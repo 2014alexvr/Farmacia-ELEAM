@@ -87,6 +87,7 @@ export interface ResidentMedication {
   acquisitionQuantity?: number; // Nueva columna para la cantidad
   deliveryDate?: string; // YYYY-MM-DD format
   stockUpdatedAt?: string; // ISO string for virtual stock calculation
+  displayOrder?: number;
 }
 
 export interface LowStockItem {

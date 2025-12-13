@@ -1,8 +1,8 @@
-
 import React, { useState, useMemo, useEffect } from 'react';
 import { ResidentMedication, Provenance, MedicationSchedule } from '../../types';
 import CloseIcon from '../icons/CloseIcon';
 import PillIcon from '../icons/PillIcon';
+import CalendarIcon from '../icons/CalendarIcon'; // Assuming you might have one, otherwise use PillIcon or similar visual
 
 interface AddMedicationModalProps {
   onClose: () => void;
@@ -33,7 +33,7 @@ const AddMedicationModalModern: React.FC<AddMedicationModalProps> = ({ onClose, 
   const [acquisitionDate, setAcquisitionDate] = useState('');
   const [acquisitionQuantity, setAcquisitionQuantity] = useState(''); 
   const [deliveryDate, setDeliveryDate] = useState('');
-
+  
   const isEditing = !!medicationToEdit;
 
   useEffect(() => {
@@ -50,31 +50,26 @@ const AddMedicationModalModern: React.FC<AddMedicationModalProps> = ({ onClose, 
       });
       setSchedules(initialSchedules);
 
-      // --- LÓGICA DE CÁLCULO DE STOCK VIRTUAL (ON READ) ---
-      // Calculamos cuánto stock debería haber "hoy" restando el consumo desde la última actualización.
-      
-      // 1. Calcular Gasto Diario
+      // --- LÓGICA DE CONSOLIDACIÓN DE STOCK ---
+      // Calculamos cuánto stock queda REALMENTE hoy.
       const dailyExpense = medicationToEdit.schedules.reduce((sum, s) => sum + (Number(s.quantity) || 0), 0);
       
-      // 2. Calcular Días Transcurridos
       const anchorDateStr = medicationToEdit.stockUpdatedAt || new Date().toISOString();
       const anchorDate = new Date(anchorDateStr);
       const today = new Date();
-      // Normalizar a media noche para contar días completos
+      
       anchorDate.setHours(0,0,0,0);
       today.setHours(0,0,0,0);
       
       const diffTime = today.getTime() - anchorDate.getTime();
       const daysElapsed = Math.max(0, Math.floor(diffTime / (1000 * 60 * 60 * 24)));
 
-      // 3. Calcular Stock Visual = Stock BD - (Gasto * Días)
       const consumed = dailyExpense * daysElapsed;
-      const baseStock = medicationToEdit.stock;
+      const baseStock = medicationToEdit.stock; // Stock base original
       const calculatedVirtualStock = Math.max(0, baseStock - consumed);
 
-      setStock(String(calculatedVirtualStock));
-      // ----------------------------------------------------
-
+      setStock(String(calculatedVirtualStock)); // Mostramos el stock actual real
+      
       setStockUnit(medicationToEdit.stockUnit);
       setProvenance(medicationToEdit.provenance);
       setAcquisitionDate(medicationToEdit.acquisitionDate || '');
@@ -110,14 +105,8 @@ const AddMedicationModalModern: React.FC<AddMedicationModalProps> = ({ onClose, 
         .filter(s => s.time && Number(s.quantity) > 0)
         .map(s => ({ ...s, quantity: Number(s.quantity) }));
 
-    // LÓGICA DE ACTUALIZACIÓN:
-    // Paso A: Tomamos el stock visual (que ya fue calculado en el useEffect o editado si es nuevo)
     const currentVirtualStock = Number(stock);
-    
-    // Paso B: Sumamos el valor del campo "Cant. Adquirida"
     const quantityToAdd = acquisitionQuantity ? Number(acquisitionQuantity) : 0;
-    
-    // Paso C: El resultado es el "Nuevo_Stock_Total"
     const finalStock = currentVirtualStock + quantityToAdd;
 
     const finalAcquisitionQuantity = quantityToAdd > 0 
@@ -129,13 +118,14 @@ const AddMedicationModalModern: React.FC<AddMedicationModalProps> = ({ onClose, 
       doseValue,
       doseUnit,
       schedules: finalSchedules,
-      stock: finalStock, // Enviamos el TOTAL NUEVO a la BD
+      stock: finalStock, 
       stockUnit,
       provenance,
       acquisitionDate: acquisitionDate || undefined,
       acquisitionQuantity: finalAcquisitionQuantity,
       deliveryDate: deliveryDate || undefined,
-      // Paso D: Actualizar la fecha de modificación a HOY explícitamente
+      // SIEMPRE ACTUALIZAMOS LA FECHA A "AHORA"
+      // Esto consolida el stock visible como el nuevo punto de partida.
       stockUpdatedAt: new Date().toISOString(), 
     };
     
@@ -146,6 +136,7 @@ const AddMedicationModalModern: React.FC<AddMedicationModalProps> = ({ onClose, 
     }
   };
 
+  // --- Estilos de Diseño Moderno (Dark Inputs) ---
   const labelStyle = "block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5 ml-1";
   const inputBase = "block w-full px-4 py-3 bg-slate-700 border border-slate-600 text-white font-semibold focus:ring-2 focus:ring-brand-secondary focus:border-transparent transition-all placeholder-slate-400 shadow-inner text-sm";
   const inputRounded = `${inputBase} rounded-2xl`;
@@ -167,9 +158,13 @@ const AddMedicationModalModern: React.FC<AddMedicationModalProps> = ({ onClose, 
             </div>
             <div>
                 <h2 className="text-3xl font-extrabold text-slate-800 tracking-tight">
-                {isEditing ? 'Editar Tratamiento' : 'Nuevo Tratamiento'}
+                {isEditing ? 'Actualizar Inventario' : 'Nuevo Medicamento'}
                 </h2>
-                <p className="text-sm text-slate-500 font-medium mt-1">Complete los detalles del fármaco y su administración.</p>
+                <p className="text-sm text-slate-500 font-medium mt-1">
+                    {isEditing 
+                        ? 'Confirme el stock actual para reiniciar el conteo diario.' 
+                        : 'Ingrese el stock inicial y la dosis diaria.'}
+                </p>
             </div>
           </div>
           <button 
@@ -259,34 +254,24 @@ const AddMedicationModalModern: React.FC<AddMedicationModalProps> = ({ onClose, 
             {/* SECCIÓN 3: GESTIÓN DE INVENTARIO (KPI Cards) */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 
-                {/* Columna 1: Inputs de Cantidad y Stock */}
+                {/* Columna 1: Inputs de Stock y Fecha de Conteo */}
                 <div className="md:col-span-1 space-y-4">
-                    {/* Cant. Adquirida */}
-                    <div className="space-y-1">
-                        <label className={labelStyle}>Cant. Adquirida</label>
-                        <input 
-                            type="number" 
-                            value={acquisitionQuantity} 
-                            onChange={e => setAcquisitionQuantity(e.target.value)} 
-                            className={`${inputRounded} focus:ring-emerald-500`}
-                            placeholder="0 (Suma al Stock)"
-                        />
-                    </div>
-
-                    {/* Stock Físico Actual (Card Style - Read Only on Edit) */}
-                    <div className={`bg-slate-800 p-4 rounded-3xl border border-slate-700 flex flex-col justify-center relative overflow-hidden group shadow-lg min-h-[100px] ${isEditing ? 'opacity-90 cursor-not-allowed' : ''}`}>
+                    {/* Stock Físico Actual (Card Style) */}
+                    <div className={`bg-slate-800 p-4 rounded-3xl border border-slate-700 flex flex-col justify-center relative overflow-hidden group shadow-lg min-h-[100px]`}>
                         <div className="absolute right-0 top-0 p-3 opacity-10 group-hover:opacity-20 transition-opacity">
                             <PillIcon className="w-12 h-12 text-white" />
                         </div>
-                        <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 z-10">Stock Físico Actual {isEditing && '(Calculado)'}</label>
+                        <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 z-10 flex flex-col">
+                            <span>Stock Contabilizado</span>
+                            <span className="text-[9px] text-slate-500 font-normal normal-case">(Actual)</span>
+                        </label>
                         <div className="flex items-baseline gap-1 z-10">
                             <input 
                                 type="number" 
                                 placeholder="0" 
                                 value={stock} 
-                                onChange={e => !isEditing && setStock(e.target.value)} 
-                                disabled={isEditing}
-                                className="w-full bg-transparent border-none text-3xl font-extrabold text-white tracking-tight p-0 focus:ring-0 placeholder-slate-600 disabled:text-slate-200"
+                                onChange={e => setStock(e.target.value)} 
+                                className="w-full bg-transparent border-none text-3xl font-extrabold text-white tracking-tight p-0 focus:ring-0 placeholder-slate-600"
                                 required
                             />
                             <select 
@@ -300,26 +285,23 @@ const AddMedicationModalModern: React.FC<AddMedicationModalProps> = ({ onClose, 
                     </div>
                 </div>
 
-                {/* Columna 2 y 3: Fecha + Tarjetas KPI */}
+                {/* Columna 2 y 3: Fecha Adquisición + KPI */}
                 <div className="md:col-span-2 grid grid-cols-2 gap-4">
                     
-                    {/* Sub-Columna 1: Fecha + Gasto Diario */}
+                    {/* Sub-Columna 1: Sumar Stock */}
                     <div className="space-y-4 flex flex-col">
-                        {/* Fecha Adquisición */}
                         <div className="space-y-1">
-                            <label className={labelStyle}>Fecha Adquisición</label>
-                            <div className="relative">
-                                <input 
-                                    type="date" 
-                                    value={acquisitionDate} 
-                                    onChange={e => setAcquisitionDate(e.target.value)} 
-                                    className={inputRounded}
-                                    style={{ colorScheme: 'dark' }}
-                                />
-                            </div>
+                             <label className={labelStyle}>Sumar Stock (Compra/Llegada)</label>
+                             <input 
+                                 type="number" 
+                                 value={acquisitionQuantity} 
+                                 onChange={e => setAcquisitionQuantity(e.target.value)} 
+                                 className={inputRounded}
+                                 placeholder="+ 0"
+                             />
                         </div>
 
-                        {/* Tarjeta Gasto Diario */}
+                         {/* Tarjeta Gasto Diario */}
                         <div className="bg-slate-800 p-4 rounded-3xl border border-slate-700 flex flex-col justify-center relative overflow-hidden group shadow-lg flex-1 min-h-[100px]">
                             <div className="absolute right-0 top-0 p-3 opacity-10 group-hover:opacity-20 transition-opacity">
                                 <PillIcon className="w-12 h-12 text-white" />
@@ -332,12 +314,18 @@ const AddMedicationModalModern: React.FC<AddMedicationModalProps> = ({ onClose, 
                         </div>
                     </div>
 
-                    {/* Sub-Columna 2: Espaciador + Cobertura */}
+                    {/* Sub-Columna 2: Cobertura */}
                     <div className="space-y-4 flex flex-col">
-                        {/* Espaciador Invisible para alineación en Desktop (simula altura de input) */}
-                        <div className="space-y-1 invisible hidden md:block" aria-hidden="true">
-                            <label className={labelStyle}>Spacer</label>
-                            <input className={inputRounded} disabled />
+                         {/* Fecha Adquisición (Opcional) */}
+                        <div className="space-y-1">
+                            <label className={labelStyle}>Fecha Adquisición (Ref)</label>
+                            <input 
+                                type="date" 
+                                value={acquisitionDate} 
+                                onChange={e => setAcquisitionDate(e.target.value)} 
+                                className={inputRounded}
+                                style={{ colorScheme: 'dark' }}
+                            />
                         </div>
 
                         {/* Tarjeta Cobertura */}
@@ -414,7 +402,7 @@ const AddMedicationModalModern: React.FC<AddMedicationModalProps> = ({ onClose, 
                 disabled={!isFormValid}
                 className="flex-1 md:flex-none px-8 py-3.5 bg-gradient-to-r from-brand-secondary to-brand-primary text-white font-bold rounded-2xl shadow-lg shadow-brand-primary/30 hover:shadow-brand-primary/50 hover:-translate-y-0.5 transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none disabled:translate-y-0"
                 >
-                {isEditing ? 'Actualizar' : 'Guardar'}
+                {isEditing ? 'Confirmar Stock y Guardar' : 'Guardar'}
                 </button>
             </div>
           </div>
