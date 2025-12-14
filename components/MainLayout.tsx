@@ -41,6 +41,55 @@ const MainLayout: React.FC<MainLayoutProps> = ({ user, onLogout, users, setUsers
   // GLOBAL SETTING: Low Stock Threshold (default 7 days)
   const [lowStockThreshold, setLowStockThreshold] = useState<number>(7);
 
+  // --- CORE LOGIC: STOCK DEDUCTION (CATCH-UP) ---
+  const processStockCatchUp = async (medications: any[]) => {
+      const updates = [];
+      const now = new Date();
+      const todayStr = now.toISOString().split('T')[0]; // YYYY-MM-DD for simple comparison
+
+      for (const m of medications) {
+          // If no update date, assume it's new and set anchor to now without deducting
+          if (!m.stock_updated_at) continue;
+
+          const lastUpdateDate = new Date(m.stock_updated_at);
+          
+          // Calculate difference in days (ignoring time, strictly dates)
+          // Normalize to midnight UTC to avoid timezone shifts causing issues
+          const d1 = Date.UTC(lastUpdateDate.getFullYear(), lastUpdateDate.getMonth(), lastUpdateDate.getDate());
+          const d2 = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
+          const msPerDay = 1000 * 60 * 60 * 24;
+          const daysElapsed = Math.floor((d2 - d1) / msPerDay);
+
+          if (daysElapsed >= 1) {
+             // Calculate Daily Dose
+             const dailyExpense = m.schedules ? m.schedules.reduce((sum: number, s: any) => sum + (Number(s.quantity) || 0), 0) : 0;
+             
+             if (dailyExpense > 0) {
+                 const totalDeduction = dailyExpense * daysElapsed;
+                 const newStock = Math.max(0, m.stock - totalDeduction);
+                 
+                 console.log(`[STOCK UPDATE] ${m.medication_name}: Descontando ${totalDeduction} (${daysElapsed} días). Nuevo Stock: ${newStock}`);
+
+                 updates.push({
+                     id: m.id,
+                     stock: newStock,
+                     stock_updated_at: now.toISOString() // Reset anchor to now
+                 });
+             }
+          }
+      }
+
+      if (updates.length > 0) {
+          for (const update of updates) {
+              await supabase.from('resident_medications')
+                  .update({ stock: update.stock, stock_updated_at: update.stock_updated_at })
+                  .eq('id', update.id);
+          }
+          return true; // Data changed
+      }
+      return false; // No changes
+  };
+
   // Función centralizada para cargar datos
   const fetchData = useCallback(async () => {
       setLoadingData(true);
@@ -79,37 +128,22 @@ const MainLayout: React.FC<MainLayoutProps> = ({ user, onLogout, users, setUsers
              }
         }
 
-        // Fetch Medications & Calculate Virtual Stock (Read-Only Logic)
-        // Fix: Removed .order('orden_personalizado') to avoid crash if column is missing
-        const { data: medsData, error: medsError } = await supabase
-            .from('resident_medications')
-            .select('*');
+        // Fetch Medications raw first
+        const { data: medsDataRaw, error: medsError } = await supabase.from('resident_medications').select('*');
 
-        if (medsData) {
-            const mappedMeds = medsData.map((m: any) => {
-                // 1. Get Base Stock (Initial Entry)
-                const baseStock = m.stock;
-                
-                // 2. Determine Reference Date (Start of Treatment/Entry)
-                const anchorDateStr = m.stock_updated_at || new Date().toISOString();
-                const anchorDate = new Date(anchorDateStr);
-                const today = new Date(); 
-                
-                // 3. Normalizar a Medianoche
-                anchorDate.setHours(0,0,0,0);
-                today.setHours(0,0,0,0);
+        if (medsDataRaw) {
+            // RUN STOCK CATCH-UP LOGIC BEFORE DISPLAYING
+            // This ensures if the user hasn't opened the app in 3 days, 3 days are deducted DB-side.
+            const dataChanged = await processStockCatchUp(medsDataRaw);
+            
+            let finalMedsData = medsDataRaw;
+            if (dataChanged) {
+                 // Refetch if we updated the DB
+                 const { data: refreshedMeds } = await supabase.from('resident_medications').select('*');
+                 if (refreshedMeds) finalMedsData = refreshedMeds;
+            }
 
-                // 4. Calcular Días Transcurridos
-                const diffTime = today.getTime() - anchorDate.getTime();
-                const daysElapsed = Math.max(0, Math.floor(diffTime / (1000 * 60 * 60 * 24)));
-
-                // 5. Calculate Daily Consumption
-                const dailyExpense = m.schedules ? m.schedules.reduce((sum: number, s: any) => sum + (Number(s.quantity) || 0), 0) : 0;
-
-                // 6. Calculate Virtual Stock
-                const consumed = dailyExpense * daysElapsed;
-                const virtualStock = Math.max(0, baseStock - consumed);
-
+            const mappedMeds = finalMedsData.map((m: any) => {
                 return {
                     id: m.id,
                     resident_id: m.resident_id,
@@ -118,7 +152,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ user, onLogout, users, setUsers
                     doseValue: m.dose_value,
                     doseUnit: m.dose_unit,
                     schedules: m.schedules,
-                    stock: virtualStock, 
+                    stock: m.stock, // Show REAL DB stock
                     stockUnit: m.stock_unit,
                     provenance: m.provenance,
                     acquisitionDate: m.acquisition_date,
@@ -133,7 +167,6 @@ const MainLayout: React.FC<MainLayoutProps> = ({ user, onLogout, users, setUsers
             setResidentMedications(mappedMeds);
         } else if (medsError) {
              console.error("Error fetching medications", medsError.message);
-             // If fetch fails, show nothing or empty to avoid confusing states, but keep mock logic if needed for dev
              if (residentMedications.length === 0) setResidentMedications([]);
         }
 
@@ -162,26 +195,37 @@ const MainLayout: React.FC<MainLayoutProps> = ({ user, onLogout, users, setUsers
     fetchData();
   }, []); 
 
-  // AUTOMATIC DATE CHANGE DETECTOR
-  useEffect(() => {
-      const checkDateChange = () => {
-          const now = new Date();
-          const currentDay = now.getDate();
-          const lastCheckedDayStr = localStorage.getItem('app_last_day_checked');
-          const lastCheckedDay = lastCheckedDayStr ? parseInt(lastCheckedDayStr, 10) : null;
+  // --- MANUAL FORCE UPDATE FUNCTION (THE SOLUTION TO THE 24H WAIT) ---
+  const handleForceDailyUpdate = useCallback(async () => {
+    if (!window.confirm("¿CONFIRMAS descontar manualmente 1 día de dosis a TODOS los medicamentos? Esta acción reducirá el stock real en la base de datos inmediatamente.")) return;
+    
+    setLoadingData(true);
+    try {
+        const { data: allMeds } = await supabase.from('resident_medications').select('*');
+        if (!allMeds) throw new Error("No se pudieron cargar los medicamentos.");
 
-          if (lastCheckedDay !== null && lastCheckedDay !== currentDay) {
-              console.log("Cambio de día detectado (Medianoche). Recalculando stock...");
-              fetchData();
-          }
-          
-          localStorage.setItem('app_last_day_checked', String(currentDay));
-      };
-
-      const intervalId = setInterval(checkDateChange, 60000); 
-      checkDateChange();
-
-      return () => clearInterval(intervalId);
+        let processedCount = 0;
+        for (const m of allMeds) {
+             const dailyExpense = m.schedules ? m.schedules.reduce((sum: number, s: any) => sum + (Number(s.quantity) || 0), 0) : 0;
+             if (dailyExpense > 0) {
+                 const newStock = Math.max(0, m.stock - dailyExpense);
+                 await supabase.from('resident_medications')
+                    .update({ 
+                        stock: newStock,
+                        stock_updated_at: new Date().toISOString() // Update timestamp so auto-logic doesn't run again today
+                    })
+                    .eq('id', m.id);
+                 processedCount++;
+             }
+        }
+        alert(`Proceso completado. Se descontó 1 día de consumo a ${processedCount} medicamentos.`);
+        fetchData(); // Reload UI
+    } catch (e: any) {
+        console.error("Error forcing update:", e);
+        alert("Error al procesar: " + e.message);
+    } finally {
+        setLoadingData(false);
+    }
   }, [fetchData]);
 
 
@@ -621,6 +665,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ user, onLogout, users, setUsers
                   onDeleteUser={handleDeleteUser}
                   onReorderUsers={handleReorderUsers}
                   onRestoreData={handleRestoreData}
+                  onForceDailyUpdate={handleForceDailyUpdate} // NEW PROP
                />;
       default: 
         return (
