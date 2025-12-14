@@ -192,6 +192,7 @@ const AddMedicationModalV2: React.FC<AddMedicationModalProps> = ({ onClose, onSa
                                 <div className="flex shadow-sm rounded-xl overflow-hidden">
                                     <input 
                                         type="number" 
+                                        step="any"
                                         placeholder="0" 
                                         value={s.quantity} 
                                         onChange={e => handleScheduleChange(index, 'quantity', e.target.value)} 
@@ -220,6 +221,7 @@ const AddMedicationModalV2: React.FC<AddMedicationModalProps> = ({ onClose, onSa
                     <div className="flex shadow-sm rounded-2xl overflow-hidden">
                         <input 
                             type="number" 
+                            step="any"
                             placeholder="0" 
                             value={stock} 
                             onChange={e => setStock(e.target.value)} 

@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo, useEffect } from 'react';
 import { ResidentMedication, Provenance, MedicationSchedule } from '../../types';
 import CloseIcon from '../icons/CloseIcon';
@@ -193,6 +192,7 @@ const AddMedicationModal: React.FC<AddMedicationModalProps> = ({ onClose, onSave
                                 <div className="flex shadow-sm rounded-xl overflow-hidden">
                                     <input 
                                         type="number" 
+                                        step="any"
                                         placeholder="0" 
                                         value={s.quantity} 
                                         onChange={e => handleScheduleChange(index, 'quantity', e.target.value)} 
@@ -221,6 +221,7 @@ const AddMedicationModal: React.FC<AddMedicationModalProps> = ({ onClose, onSave
                     <div className="flex shadow-sm rounded-2xl overflow-hidden">
                         <input 
                             type="number" 
+                            step="any"
                             placeholder="0" 
                             value={stock} 
                             onChange={e => setStock(e.target.value)} 

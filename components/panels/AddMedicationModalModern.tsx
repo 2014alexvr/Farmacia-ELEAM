@@ -68,7 +68,7 @@ const AddMedicationModalModern: React.FC<AddMedicationModalProps> = ({ onClose, 
       const baseStock = medicationToEdit.stock; // Stock base original
       const calculatedVirtualStock = Math.max(0, baseStock - consumed);
 
-      setStock(String(calculatedVirtualStock)); // Mostramos el stock actual real
+      setStock(String(Number(calculatedVirtualStock.toFixed(2)))); // Mostramos el stock actual real con decimales
       
       setStockUnit(medicationToEdit.stockUnit);
       setProvenance(medicationToEdit.provenance);
@@ -232,6 +232,7 @@ const AddMedicationModalModern: React.FC<AddMedicationModalProps> = ({ onClose, 
                                 <div className="flex shadow-sm rounded-xl overflow-hidden">
                                     <input 
                                         type="number" 
+                                        step="any"
                                         placeholder="0" 
                                         value={s.quantity} 
                                         onChange={e => handleScheduleChange(index, 'quantity', e.target.value)} 
@@ -268,6 +269,7 @@ const AddMedicationModalModern: React.FC<AddMedicationModalProps> = ({ onClose, 
                         <div className="flex items-baseline gap-1 z-10">
                             <input 
                                 type="number" 
+                                step="any"
                                 placeholder="0" 
                                 value={stock} 
                                 onChange={e => setStock(e.target.value)} 
@@ -294,6 +296,7 @@ const AddMedicationModalModern: React.FC<AddMedicationModalProps> = ({ onClose, 
                              <label className={labelStyle}>Sumar Stock (Compra/Llegada)</label>
                              <input 
                                  type="number" 
+                                 step="any"
                                  value={acquisitionQuantity} 
                                  onChange={e => setAcquisitionQuantity(e.target.value)} 
                                  className={inputRounded}

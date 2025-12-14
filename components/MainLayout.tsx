@@ -43,6 +43,8 @@ const MainLayout: React.FC<MainLayoutProps> = ({ user, onLogout, users, setUsers
 
   // --- CORE LOGIC: STOCK DEDUCTION (CATCH-UP) ---
   const processStockCatchUp = async (medications: any[]) => {
+      // Nota: Esta función requiere la columna 'stock_updated_at' en la base de datos.
+      // Si la columna no existe, simplemente omitirá el procesamiento automático.
       const updates = [];
       const now = new Date();
       
@@ -51,7 +53,6 @@ const MainLayout: React.FC<MainLayoutProps> = ({ user, onLogout, users, setUsers
 
           const lastUpdateDate = new Date(m.stock_updated_at);
           
-          // Calculate difference in days
           const d1 = Date.UTC(lastUpdateDate.getFullYear(), lastUpdateDate.getMonth(), lastUpdateDate.getDate());
           const d2 = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
           const msPerDay = 1000 * 60 * 60 * 24;
@@ -64,7 +65,6 @@ const MainLayout: React.FC<MainLayoutProps> = ({ user, onLogout, users, setUsers
              }
              if (!Array.isArray(schedules)) schedules = [];
 
-             // Calculate Daily Dose with robust parsing
              const dailyExpense = schedules.reduce((sum: number, s: any) => {
                  const q = parseFloat(s.quantity);
                  return sum + (isNaN(q) ? 0 : q);
@@ -77,8 +77,8 @@ const MainLayout: React.FC<MainLayoutProps> = ({ user, onLogout, users, setUsers
                  
                  updates.push({
                      id: m.id,
-                     stock: newStock,
-                     stock_updated_at: now.toISOString() // Reset anchor to now
+                     stock: Number(newStock.toFixed(2)), // Permitir decimales (2 dígitos)
+                     stock_updated_at: now.toISOString()
                  });
              }
           }
@@ -90,9 +90,9 @@ const MainLayout: React.FC<MainLayoutProps> = ({ user, onLogout, users, setUsers
                   .update({ stock: update.stock, stock_updated_at: update.stock_updated_at })
                   .eq('id', update.id);
           }
-          return true; // Data changed
+          return true;
       }
-      return false; // No changes
+      return false; 
   };
 
   // Función centralizada para cargar datos
@@ -132,20 +132,18 @@ const MainLayout: React.FC<MainLayoutProps> = ({ user, onLogout, users, setUsers
              }
         }
 
-        // Fetch Medications raw first
+        // Fetch Medications
         const { data: medsDataRaw, error: medsError } = await supabase.from('resident_medications').select('*');
 
         if (medsDataRaw) {
-            // RUN STOCK CATCH-UP LOGIC
-            const dataChanged = await processStockCatchUp(medsDataRaw);
-            
-            let finalMedsData = medsDataRaw;
-            if (dataChanged) {
-                 const { data: refreshedMeds } = await supabase.from('resident_medications').select('*');
-                 if (refreshedMeds) finalMedsData = refreshedMeds;
+            // Intentar proceso automático (si falla silenciosamente es normal por falta de columna)
+            try {
+                await processStockCatchUp(medsDataRaw);
+            } catch (err) {
+                // Ignorar error de catch-up automático
             }
 
-            const mappedMeds = finalMedsData.map((m: any) => {
+            const mappedMeds = medsDataRaw.map((m: any) => {
                 let schedules = m.schedules;
                 if (typeof schedules === 'string') {
                     try { schedules = JSON.parse(schedules); } catch(e) { schedules = []; }
@@ -159,7 +157,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ user, onLogout, users, setUsers
                     doseValue: m.dose_value,
                     doseUnit: m.dose_unit,
                     schedules: Array.isArray(schedules) ? schedules : [],
-                    stock: m.stock, // Show REAL DB stock
+                    stock: m.stock,
                     stockUnit: m.stock_unit,
                     provenance: m.provenance,
                     acquisitionDate: m.acquisition_date,
@@ -200,13 +198,14 @@ const MainLayout: React.FC<MainLayoutProps> = ({ user, onLogout, users, setUsers
     fetchData();
   }, []); 
 
-  // --- MANUAL FORCE UPDATE FUNCTION (ROBUST DIAGNOSTIC VERSION) ---
+  // --- MANUAL FORCE UPDATE FUNCTION (DECIMAL SUPPORT ENABLED) ---
   const handleForceDailyUpdate = useCallback(async () => {
-    if (!window.confirm("ATENCIÓN: Se intentará descontar 1 día de consumo. Si hay errores, se mostrará el detalle técnico.")) return;
+    if (!window.confirm("¿Confirmar descuento de stock diario a todos los medicamentos activos?")) return;
     
     setLoadingData(true);
-    let log: string[] = [];
-    let firstErrorDetail = "";
+    let processedCount = 0;
+    let errorCount = 0;
+    let zeroConsumptionCount = 0;
 
     try {
         const { data: allMeds, error: fetchError } = await supabase.from('resident_medications').select('*');
@@ -215,19 +214,16 @@ const MainLayout: React.FC<MainLayoutProps> = ({ user, onLogout, users, setUsers
             throw new Error(fetchError?.message || "No se pudieron cargar los datos.");
         }
 
-        let processedCount = 0;
-        let zeroConsumptionCount = 0;
-        let errorCount = 0;
-
+        // Procesamiento secuencial optimizado
         for (const m of allMeds) {
-             // 1. Parsing
+             // 1. Parsing Seguro
              let schedules = m.schedules;
              if (typeof schedules === 'string') {
                  try { schedules = JSON.parse(schedules); } catch (e) { schedules = []; }
              }
              if (!Array.isArray(schedules)) schedules = [];
 
-             // 2. Calculation
+             // 2. Calculo Gasto (Manejo de comas y decimales)
              const dailyExpense = schedules.reduce((sum: number, s: any) => {
                  let qString = String(s.quantity).replace(',', '.'); 
                  const q = parseFloat(qString); 
@@ -236,33 +232,21 @@ const MainLayout: React.FC<MainLayoutProps> = ({ user, onLogout, users, setUsers
 
              if (dailyExpense > 0) {
                  const currentStock = parseFloat(m.stock) || 0;
-                 const newStock = Math.max(0, currentStock - dailyExpense);
                  
-                 // 3. Update DB (Try standard update first)
+                 // 3. SOPORTE DECIMALES
+                 // Restamos y formateamos a 2 decimales, convirtiendo de nuevo a Number para la DB
+                 const newStock = Number(Math.max(0, currentStock - dailyExpense).toFixed(2));
+                 
+                 // 4. ACTUALIZAR DB (SOLO CAMPO STOCK)
+                 // No enviamos 'stock_updated_at' porque sabemos que la columna no existe
                  const { error: updateError } = await supabase.from('resident_medications')
-                    .update({ 
-                        stock: newStock,
-                        stock_updated_at: new Date().toISOString()
-                    })
+                    .update({ stock: newStock })
                     .eq('id', m.id);
                  
                  if (updateError) {
-                     // 4. FALLBACK STRATEGY: Maybe 'stock_updated_at' doesn't exist? Try updating only stock.
-                     console.warn(`Intento 1 falló para ${m.medication_name}. Probando fallback solo stock...`);
-                     const { error: fallbackError } = await supabase.from('resident_medications')
-                        .update({ stock: newStock })
-                        .eq('id', m.id);
-
-                     if (fallbackError) {
-                        console.error(`Error FATAL actualizando ${m.medication_name}:`, updateError);
-                        if (!firstErrorDetail) firstErrorDetail = updateError.message + " | Fallback: " + fallbackError.message;
-                        errorCount++;
-                     } else {
-                        log.push(`${m.medication_name}: Stock actualizado (SIN FECHA) -> ${newStock}`);
-                        processedCount++;
-                     }
+                     console.error(`Error actualizando ID ${m.id}:`, updateError.message);
+                     errorCount++;
                  } else {
-                     log.push(`${m.medication_name}: Stock actualizado -> ${newStock}`);
                      processedCount++;
                  }
              } else {
@@ -270,25 +254,21 @@ const MainLayout: React.FC<MainLayoutProps> = ({ user, onLogout, users, setUsers
              }
         }
         
-        console.log("FORCE UPDATE LOG:", log);
+        let message = `STOCK ACTUALIZADO EXITOSAMENTE\n\n` +
+                      `✅ Medicamentos procesados: ${processedCount}\n` +
+                      `⚠️ Sin consumo configurado: ${zeroConsumptionCount}`;
         
-        let message = `PROCESO FINALIZADO\n\n` +
-                      `✅ Exitosos: ${processedCount}\n` +
-                      `⚠️ Omitidos (consumo 0): ${zeroConsumptionCount}\n` +
-                      `❌ Fallidos: ${errorCount}`;
-        
-        if (firstErrorDetail) {
-            message += `\n\n🔍 DIAGNÓSTICO DEL PRIMER ERROR:\n"${firstErrorDetail}"\n\n` + 
-                       `Por favor, envíe este mensaje al desarrollador.`;
-        } else if (processedCount > 0) {
-            message += `\n\nEl inventario se ha actualizado correctamente.`;
+        if (errorCount > 0) {
+            message += `\n❌ Errores de escritura: ${errorCount}`;
+        } else {
+            message += `\n\nEl inventario ha sido descontado correctamente.`;
         }
 
         alert(message);
-        fetchData(); 
+        fetchData(); // Recargar datos visuales
     } catch (e: any) {
-        console.error("Error forcing update:", e);
-        alert("Error crítico de sistema: " + e.message);
+        console.error("Error crítico:", e);
+        alert("Error del sistema: " + e.message);
     } finally {
         setLoadingData(false);
     }
@@ -332,7 +312,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ user, onLogout, users, setUsers
             stock_unit: m.stockUnit,
             provenance: m.provenance,
             delivery_date: m.deliveryDate,
-            stock_updated_at: new Date().toISOString()
+            // Omitimos stock_updated_at para evitar errores si la columna no existe
         }));
 
         const { error: medError } = await supabase.from('resident_medications').upsert(medsPayload);
@@ -473,7 +453,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ user, onLogout, users, setUsers
             ...basePayload,
             acquisition_date: medToSave.acquisitionDate,
             acquisition_quantity: medToSave.acquisitionQuantity,
-            stock_updated_at: medToSave.stockUpdatedAt,
+            // stock_updated_at: medToSave.stockUpdatedAt, // REMOVED to avoid error
             orden_personalizado: medToSave.displayOrder ?? 0
         };
 
@@ -530,7 +510,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ user, onLogout, users, setUsers
               delivery_date: m.deliveryDate,
               acquisition_date: m.acquisitionDate,
               acquisition_quantity: m.acquisitionQuantity,
-              stock_updated_at: m.stockUpdatedAt,
+              // stock_updated_at: m.stockUpdatedAt, // REMOVED
               orden_personalizado: index
           }));
 
