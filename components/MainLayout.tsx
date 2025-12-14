@@ -45,31 +45,36 @@ const MainLayout: React.FC<MainLayoutProps> = ({ user, onLogout, users, setUsers
   const processStockCatchUp = async (medications: any[]) => {
       const updates = [];
       const now = new Date();
-      const todayStr = now.toISOString().split('T')[0]; // YYYY-MM-DD for simple comparison
-
+      
       for (const m of medications) {
-          // If no update date, assume it's new and set anchor to now without deducting
           if (!m.stock_updated_at) continue;
 
           const lastUpdateDate = new Date(m.stock_updated_at);
           
-          // Calculate difference in days (ignoring time, strictly dates)
-          // Normalize to midnight UTC to avoid timezone shifts causing issues
+          // Calculate difference in days
           const d1 = Date.UTC(lastUpdateDate.getFullYear(), lastUpdateDate.getMonth(), lastUpdateDate.getDate());
           const d2 = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
           const msPerDay = 1000 * 60 * 60 * 24;
           const daysElapsed = Math.floor((d2 - d1) / msPerDay);
 
           if (daysElapsed >= 1) {
-             // Calculate Daily Dose
-             const dailyExpense = m.schedules ? m.schedules.reduce((sum: number, s: any) => sum + (Number(s.quantity) || 0), 0) : 0;
+             let schedules = m.schedules;
+             if (typeof schedules === 'string') {
+                 try { schedules = JSON.parse(schedules); } catch(e) { schedules = []; }
+             }
+             if (!Array.isArray(schedules)) schedules = [];
+
+             // Calculate Daily Dose with robust parsing
+             const dailyExpense = schedules.reduce((sum: number, s: any) => {
+                 const q = parseFloat(s.quantity);
+                 return sum + (isNaN(q) ? 0 : q);
+             }, 0);
              
              if (dailyExpense > 0) {
+                 const currentStock = parseFloat(m.stock) || 0;
                  const totalDeduction = dailyExpense * daysElapsed;
-                 const newStock = Math.max(0, m.stock - totalDeduction);
+                 const newStock = Math.max(0, currentStock - totalDeduction);
                  
-                 console.log(`[STOCK UPDATE] ${m.medication_name}: Descontando ${totalDeduction} (${daysElapsed} días). Nuevo Stock: ${newStock}`);
-
                  updates.push({
                      id: m.id,
                      stock: newStock,
@@ -112,7 +117,6 @@ const MainLayout: React.FC<MainLayoutProps> = ({ user, onLogout, users, setUsers
           }));
           setResidents(mappedResidents);
         } else if (resError) {
-             console.warn("Error fetching residents with sort, trying basic select:", resError.message);
              const { data: retryData } = await supabase.from('residents').select('*');
              if (retryData) {
                 const mapped = retryData.map((r: any) => ({
@@ -132,18 +136,21 @@ const MainLayout: React.FC<MainLayoutProps> = ({ user, onLogout, users, setUsers
         const { data: medsDataRaw, error: medsError } = await supabase.from('resident_medications').select('*');
 
         if (medsDataRaw) {
-            // RUN STOCK CATCH-UP LOGIC BEFORE DISPLAYING
-            // This ensures if the user hasn't opened the app in 3 days, 3 days are deducted DB-side.
+            // RUN STOCK CATCH-UP LOGIC
             const dataChanged = await processStockCatchUp(medsDataRaw);
             
             let finalMedsData = medsDataRaw;
             if (dataChanged) {
-                 // Refetch if we updated the DB
                  const { data: refreshedMeds } = await supabase.from('resident_medications').select('*');
                  if (refreshedMeds) finalMedsData = refreshedMeds;
             }
 
             const mappedMeds = finalMedsData.map((m: any) => {
+                let schedules = m.schedules;
+                if (typeof schedules === 'string') {
+                    try { schedules = JSON.parse(schedules); } catch(e) { schedules = []; }
+                }
+
                 return {
                     id: m.id,
                     resident_id: m.resident_id,
@@ -151,7 +158,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ user, onLogout, users, setUsers
                     medicationName: m.medication_name,
                     doseValue: m.dose_value,
                     doseUnit: m.dose_unit,
-                    schedules: m.schedules,
+                    schedules: Array.isArray(schedules) ? schedules : [],
                     stock: m.stock, // Show REAL DB stock
                     stockUnit: m.stock_unit,
                     provenance: m.provenance,
@@ -162,7 +169,6 @@ const MainLayout: React.FC<MainLayoutProps> = ({ user, onLogout, users, setUsers
                     displayOrder: m.orden_personalizado || 0
                 };
             });
-            // Client-side sort as fallback
             mappedMeds.sort((a: any, b: any) => (a.displayOrder || 0) - (b.displayOrder || 0));
             setResidentMedications(mappedMeds);
         } else if (medsError) {
@@ -190,39 +196,85 @@ const MainLayout: React.FC<MainLayoutProps> = ({ user, onLogout, users, setUsers
       }
   }, [residents.length, residentMedications.length]); 
   
-  // Initial Data Fetch from Supabase
   useEffect(() => {
     fetchData();
   }, []); 
 
-  // --- MANUAL FORCE UPDATE FUNCTION (THE SOLUTION TO THE 24H WAIT) ---
+  // --- MANUAL FORCE UPDATE FUNCTION (ROBUST VERSION) ---
   const handleForceDailyUpdate = useCallback(async () => {
-    if (!window.confirm("¿CONFIRMAS descontar manualmente 1 día de dosis a TODOS los medicamentos? Esta acción reducirá el stock real en la base de datos inmediatamente.")) return;
+    if (!window.confirm("ATENCIÓN: Esta acción descontará el equivalente a 1 DÍA de consumo a TODOS los medicamentos activos. ¿Desea proceder?")) return;
     
     setLoadingData(true);
+    let log = [];
     try {
-        const { data: allMeds } = await supabase.from('resident_medications').select('*');
-        if (!allMeds) throw new Error("No se pudieron cargar los medicamentos.");
+        const { data: allMeds, error: fetchError } = await supabase.from('resident_medications').select('*');
+        
+        if (fetchError || !allMeds) {
+            throw new Error(fetchError?.message || "No se pudieron cargar los datos.");
+        }
 
         let processedCount = 0;
+        let zeroConsumptionCount = 0;
+        let errorCount = 0;
+
         for (const m of allMeds) {
-             const dailyExpense = m.schedules ? m.schedules.reduce((sum: number, s: any) => sum + (Number(s.quantity) || 0), 0) : 0;
+             // 1. Robust Schedule Parsing (Handle string JSON or Object)
+             let schedules = m.schedules;
+             if (typeof schedules === 'string') {
+                 try {
+                     schedules = JSON.parse(schedules);
+                 } catch (e) {
+                     schedules = [];
+                 }
+             }
+             if (!Array.isArray(schedules)) schedules = [];
+
+             // 2. Calculate Expense (Force Numbers)
+             const dailyExpense = schedules.reduce((sum: number, s: any) => {
+                 // Convert '1', '1.5', '0,5' to float
+                 let qString = String(s.quantity).replace(',', '.'); 
+                 const q = parseFloat(qString); 
+                 return sum + (isNaN(q) ? 0 : q);
+             }, 0);
+
              if (dailyExpense > 0) {
-                 const newStock = Math.max(0, m.stock - dailyExpense);
-                 await supabase.from('resident_medications')
+                 const currentStock = parseFloat(m.stock) || 0;
+                 const newStock = Math.max(0, currentStock - dailyExpense);
+                 
+                 // 3. Update DB
+                 const { error: updateError } = await supabase.from('resident_medications')
                     .update({ 
                         stock: newStock,
-                        stock_updated_at: new Date().toISOString() // Update timestamp so auto-logic doesn't run again today
+                        stock_updated_at: new Date().toISOString()
                     })
                     .eq('id', m.id);
-                 processedCount++;
+                 
+                 if (updateError) {
+                     console.error(`Error actualizando ${m.medication_name}:`, updateError);
+                     errorCount++;
+                 } else {
+                     log.push(`${m.medication_name}: Stock ${currentStock} -> ${newStock} (Gasto: ${dailyExpense})`);
+                     processedCount++;
+                 }
+             } else {
+                 zeroConsumptionCount++;
+                 log.push(`${m.medication_name}: Omitido (Gasto calculado: 0)`);
              }
         }
-        alert(`Proceso completado. Se descontó 1 día de consumo a ${processedCount} medicamentos.`);
-        fetchData(); // Reload UI
+        
+        console.log("FORCE UPDATE DETAILED LOG:\n", log);
+        
+        // Reporte para el usuario
+        alert(`PROCESO COMPLETADO\n\n` +
+              `✅ Medicamentos actualizados: ${processedCount}\n` +
+              `⚠️ Omitidos (Sin consumo/dosis): ${zeroConsumptionCount}\n` +
+              `❌ Errores de red: ${errorCount}\n\n` +
+              `El stock se ha reducido correctamente en la base de datos.`);
+        
+        fetchData(); // Recargar la vista inmediatamente
     } catch (e: any) {
         console.error("Error forcing update:", e);
-        alert("Error al procesar: " + e.message);
+        alert("Error crítico al procesar: " + e.message);
     } finally {
         setLoadingData(false);
     }
@@ -244,7 +296,6 @@ const MainLayout: React.FC<MainLayoutProps> = ({ user, onLogout, users, setUsers
 
     setLoadingData(true);
     try {
-        // 1. Restore Residents
         const residentsPayload = MOCK_RESIDENTS.map(r => ({
             id: r.id,
             name: r.name,
@@ -256,7 +307,6 @@ const MainLayout: React.FC<MainLayoutProps> = ({ user, onLogout, users, setUsers
         const { error: resError } = await supabase.from('residents').upsert(residentsPayload);
         if (resError) throw resError;
 
-        // 2. Restore Medications
         const medsPayload = MOCK_RESIDENT_MEDICATIONS.map((m, index) => ({
             id: m.id,
             resident_id: m.residentId,
@@ -269,14 +319,13 @@ const MainLayout: React.FC<MainLayoutProps> = ({ user, onLogout, users, setUsers
             provenance: m.provenance,
             delivery_date: m.deliveryDate,
             stock_updated_at: new Date().toISOString()
-            // Not including 'orden_personalizado' to avoid errors if column is missing
         }));
 
         const { error: medError } = await supabase.from('resident_medications').upsert(medsPayload);
         if (medError) throw medError;
 
         alert("Restauración completada correctamente.");
-        fetchData(); // Reload data
+        fetchData();
 
     } catch (e: any) {
         console.error("Error restoring data:", e);
@@ -324,7 +373,6 @@ const MainLayout: React.FC<MainLayoutProps> = ({ user, onLogout, users, setUsers
         });
 
         if (error) {
-             console.warn("Error saving resident with order, retrying basic:", error.message);
              const { error: retryError } = await supabase.from('residents').upsert(basePayload);
              if (retryError) throw retryError;
         }
@@ -380,8 +428,6 @@ const MainLayout: React.FC<MainLayoutProps> = ({ user, onLogout, users, setUsers
             } as ResidentMedication;
         } else {
             if (!selectedResident) return;
-            
-            // Calculate Order
             const currentResidentMeds = residentMedications.filter(m => m.residentId === selectedResident.id);
             const maxOrder = currentResidentMeds.length > 0 
                 ? Math.max(...currentResidentMeds.map(m => m.displayOrder || 0)) 
@@ -414,14 +460,13 @@ const MainLayout: React.FC<MainLayoutProps> = ({ user, onLogout, users, setUsers
             acquisition_date: medToSave.acquisitionDate,
             acquisition_quantity: medToSave.acquisitionQuantity,
             stock_updated_at: medToSave.stockUpdatedAt,
-            orden_personalizado: medToSave.displayOrder ?? 0 // Use custom column
+            orden_personalizado: medToSave.displayOrder ?? 0
         };
 
         const { error } = await supabase.from('resident_medications').upsert(fullPayload);
         
         if (error) {
             if (error.message.includes('column') || error.code === '42703') {
-                 console.warn("Schema mismatch. Retrying base.", error.message);
                  const { error: retryError } = await supabase.from('resident_medications').upsert(basePayload);
                  if (retryError) throw retryError;
             } else {

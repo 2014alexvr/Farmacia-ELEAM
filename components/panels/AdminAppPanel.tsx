@@ -28,6 +28,7 @@ const AdminAppPanel: React.FC<AdminAppPanelProps> = ({ currentUser, users, onSav
   const [userToEdit, setUserToEdit] = useState<ManagedUser | undefined>(undefined);
   const [userToDelete, setUserToDelete] = useState<ManagedUser | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [isProcessingUpdate, setIsProcessingUpdate] = useState(false);
 
   // Helper para obtener icono según rol
   const getRoleIcon = (role: UserRole) => {
@@ -113,6 +114,15 @@ const AdminAppPanel: React.FC<AdminAppPanelProps> = ({ currentUser, users, onSav
       onDeleteUser(userToDelete.id);
       setUserToDelete(null);
     }
+  };
+
+  const handleForceUpdateClick = async () => {
+      setIsProcessingUpdate(true);
+      try {
+          await onForceDailyUpdate();
+      } finally {
+          setIsProcessingUpdate(false);
+      }
   };
 
   const moveUser = async (index: number, direction: 'up' | 'down') => {
@@ -283,11 +293,21 @@ const AdminAppPanel: React.FC<AdminAppPanelProps> = ({ currentUser, users, onSav
                       </p>
                    </div>
                    <button 
-                      onClick={onForceDailyUpdate}
-                      className="px-6 py-3 bg-brand-primary text-white font-bold rounded-xl shadow-lg shadow-brand-primary/20 hover:bg-brand-dark transition-all flex items-center gap-2 whitespace-nowrap"
+                      onClick={handleForceUpdateClick}
+                      disabled={isProcessingUpdate}
+                      className="px-6 py-3 bg-brand-primary text-white font-bold rounded-xl shadow-lg shadow-brand-primary/20 hover:bg-brand-dark transition-all flex items-center gap-2 whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                      <HeartPulseIcon className="w-5 h-5" />
-                      Procesar Consumo del Día Ahora
+                      {isProcessingUpdate ? (
+                          <>
+                            <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                            Procesando...
+                          </>
+                      ) : (
+                          <>
+                            <HeartPulseIcon className="w-5 h-5" />
+                            Procesar Consumo del Día Ahora
+                          </>
+                      )}
                   </button>
               </div>
           </div>
