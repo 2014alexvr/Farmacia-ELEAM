@@ -200,12 +200,14 @@ const MainLayout: React.FC<MainLayoutProps> = ({ user, onLogout, users, setUsers
     fetchData();
   }, []); 
 
-  // --- MANUAL FORCE UPDATE FUNCTION (ROBUST VERSION) ---
+  // --- MANUAL FORCE UPDATE FUNCTION (ROBUST DIAGNOSTIC VERSION) ---
   const handleForceDailyUpdate = useCallback(async () => {
-    if (!window.confirm("ATENCIÓN: Esta acción descontará el equivalente a 1 DÍA de consumo a TODOS los medicamentos activos. ¿Desea proceder?")) return;
+    if (!window.confirm("ATENCIÓN: Se intentará descontar 1 día de consumo. Si hay errores, se mostrará el detalle técnico.")) return;
     
     setLoadingData(true);
-    let log = [];
+    let log: string[] = [];
+    let firstErrorDetail = "";
+
     try {
         const { data: allMeds, error: fetchError } = await supabase.from('resident_medications').select('*');
         
@@ -218,20 +220,15 @@ const MainLayout: React.FC<MainLayoutProps> = ({ user, onLogout, users, setUsers
         let errorCount = 0;
 
         for (const m of allMeds) {
-             // 1. Robust Schedule Parsing (Handle string JSON or Object)
+             // 1. Parsing
              let schedules = m.schedules;
              if (typeof schedules === 'string') {
-                 try {
-                     schedules = JSON.parse(schedules);
-                 } catch (e) {
-                     schedules = [];
-                 }
+                 try { schedules = JSON.parse(schedules); } catch (e) { schedules = []; }
              }
              if (!Array.isArray(schedules)) schedules = [];
 
-             // 2. Calculate Expense (Force Numbers)
+             // 2. Calculation
              const dailyExpense = schedules.reduce((sum: number, s: any) => {
-                 // Convert '1', '1.5', '0,5' to float
                  let qString = String(s.quantity).replace(',', '.'); 
                  const q = parseFloat(qString); 
                  return sum + (isNaN(q) ? 0 : q);
@@ -241,7 +238,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ user, onLogout, users, setUsers
                  const currentStock = parseFloat(m.stock) || 0;
                  const newStock = Math.max(0, currentStock - dailyExpense);
                  
-                 // 3. Update DB
+                 // 3. Update DB (Try standard update first)
                  const { error: updateError } = await supabase.from('resident_medications')
                     .update({ 
                         stock: newStock,
@@ -250,31 +247,48 @@ const MainLayout: React.FC<MainLayoutProps> = ({ user, onLogout, users, setUsers
                     .eq('id', m.id);
                  
                  if (updateError) {
-                     console.error(`Error actualizando ${m.medication_name}:`, updateError);
-                     errorCount++;
+                     // 4. FALLBACK STRATEGY: Maybe 'stock_updated_at' doesn't exist? Try updating only stock.
+                     console.warn(`Intento 1 falló para ${m.medication_name}. Probando fallback solo stock...`);
+                     const { error: fallbackError } = await supabase.from('resident_medications')
+                        .update({ stock: newStock })
+                        .eq('id', m.id);
+
+                     if (fallbackError) {
+                        console.error(`Error FATAL actualizando ${m.medication_name}:`, updateError);
+                        if (!firstErrorDetail) firstErrorDetail = updateError.message + " | Fallback: " + fallbackError.message;
+                        errorCount++;
+                     } else {
+                        log.push(`${m.medication_name}: Stock actualizado (SIN FECHA) -> ${newStock}`);
+                        processedCount++;
+                     }
                  } else {
-                     log.push(`${m.medication_name}: Stock ${currentStock} -> ${newStock} (Gasto: ${dailyExpense})`);
+                     log.push(`${m.medication_name}: Stock actualizado -> ${newStock}`);
                      processedCount++;
                  }
              } else {
                  zeroConsumptionCount++;
-                 log.push(`${m.medication_name}: Omitido (Gasto calculado: 0)`);
              }
         }
         
-        console.log("FORCE UPDATE DETAILED LOG:\n", log);
+        console.log("FORCE UPDATE LOG:", log);
         
-        // Reporte para el usuario
-        alert(`PROCESO COMPLETADO\n\n` +
-              `✅ Medicamentos actualizados: ${processedCount}\n` +
-              `⚠️ Omitidos (Sin consumo/dosis): ${zeroConsumptionCount}\n` +
-              `❌ Errores de red: ${errorCount}\n\n` +
-              `El stock se ha reducido correctamente en la base de datos.`);
+        let message = `PROCESO FINALIZADO\n\n` +
+                      `✅ Exitosos: ${processedCount}\n` +
+                      `⚠️ Omitidos (consumo 0): ${zeroConsumptionCount}\n` +
+                      `❌ Fallidos: ${errorCount}`;
         
-        fetchData(); // Recargar la vista inmediatamente
+        if (firstErrorDetail) {
+            message += `\n\n🔍 DIAGNÓSTICO DEL PRIMER ERROR:\n"${firstErrorDetail}"\n\n` + 
+                       `Por favor, envíe este mensaje al desarrollador.`;
+        } else if (processedCount > 0) {
+            message += `\n\nEl inventario se ha actualizado correctamente.`;
+        }
+
+        alert(message);
+        fetchData(); 
     } catch (e: any) {
         console.error("Error forcing update:", e);
-        alert("Error crítico al procesar: " + e.message);
+        alert("Error crítico de sistema: " + e.message);
     } finally {
         setLoadingData(false);
     }
