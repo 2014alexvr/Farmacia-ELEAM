@@ -98,7 +98,7 @@ const LoginScreenModern: React.FC<LoginScreenProps> = ({ users, onLogin }) => {
                 </div>
 
                 <div className="flex-1 overflow-y-auto custom-scrollbar px-1 pb-4">
-                    <p className="text-[10px] font-bold text-slate-400 text-center uppercase tracking-widest mb-4">Seleccione Usuario</p>
+                    <p className="text-[10px] font-bold text-slate-400 text-center uppercase tracking-widest mb-4">Seleccione su Usuario</p>
                     
                     {/* LISTA DE USUARIOS (GRID) */}
                     <div className="grid grid-cols-1 gap-3">

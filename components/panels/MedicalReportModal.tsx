@@ -271,6 +271,7 @@ const MedicalReportModal: React.FC<MedicalReportModalProps> = ({ user, resident,
             ) : (
               <div className="text-center py-8 bg-gray-50 rounded-lg border border-dashed border-gray-200">
                   <p className="text-gray-500">No hay informes médicos guardados para este residente.</p>
+                  <p className="text-xs text-red-500 mt-2 font-mono">DEBUG: Buscando en carpeta: resident_{resident.id}</p>
               </div>
             )}
           </div>
