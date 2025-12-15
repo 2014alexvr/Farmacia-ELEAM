@@ -450,12 +450,12 @@ const MainLayout: React.FC<MainLayoutProps> = ({ user, onLogout, users, setUsers
             stock_unit: medToSave.stockUnit,
             provenance: medToSave.provenance,
             delivery_date: medToSave.deliveryDate,
+            acquisition_date: medToSave.acquisitionDate,
+            acquisition_quantity: medToSave.acquisitionQuantity,
         };
 
         const fullPayload = {
             ...basePayload,
-            acquisition_date: medToSave.acquisitionDate,
-            acquisition_quantity: medToSave.acquisitionQuantity,
             // stock_updated_at: medToSave.stockUpdatedAt, // REMOVED to avoid error
             orden_personalizado: medToSave.displayOrder ?? 0
         };
