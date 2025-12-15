@@ -110,49 +110,49 @@ const MainLayout: React.FC<MainLayoutProps> = ({ user, onLogout, users, setUsers
   const fetchData = useCallback(async () => {
       setLoadingData(true);
       try {
-        // Fetch Settings
+        // 1. Fetch Settings
         const { data: settingsData } = await supabase.from('app_settings').select('value').eq('key', 'low_stock_threshold').single();
         if (settingsData && settingsData.value) {
             setLowStockThreshold(parseInt(settingsData.value, 10));
         }
 
-        // Fetch Residents
+        // 2. Fetch Residents
+        let currentResidents: Resident[] = [];
         const { data: residentsData, error: resError } = await supabase.from('residents').select('*').order('display_order', { ascending: true });
+        
         if (residentsData) {
-          const mappedResidents = residentsData.map((r: any) => ({
+          currentResidents = residentsData.map((r: any) => ({
              id: r.id,
              name: r.name,
              rut: r.rut,
              dateOfBirth: r.date_of_birth,
              displayOrder: r.display_order
           }));
-          setResidents(mappedResidents);
+          setResidents(currentResidents);
         } else if (resError) {
              const { data: retryData } = await supabase.from('residents').select('*');
              if (retryData) {
-                const mapped = retryData.map((r: any) => ({
+                currentResidents = retryData.map((r: any) => ({
                     id: r.id,
                     name: r.name,
                     rut: r.rut,
                     dateOfBirth: r.date_of_birth,
                     displayOrder: r.display_order
                 })).sort((a, b) => (a.displayOrder || 0) - (b.displayOrder || 0));
-                setResidents(mapped);
+                setResidents(currentResidents);
              } else {
-                 if (residents.length === 0) setResidents(MOCK_RESIDENTS); 
+                 if (residents.length === 0) {
+                     currentResidents = MOCK_RESIDENTS;
+                     setResidents(MOCK_RESIDENTS);
+                 }
              }
         }
 
-        // Fetch Medications
+        // 3. Fetch Medications
         const { data: medsDataRaw, error: medsError } = await supabase.from('resident_medications').select('*');
 
         if (medsDataRaw) {
-            // Intentar proceso automático (si falla silenciosamente es normal por falta de columna)
-            try {
-                await processStockCatchUp(medsDataRaw);
-            } catch (err) {
-                // Ignorar error de catch-up automático
-            }
+            try { await processStockCatchUp(medsDataRaw); } catch (err) { }
 
             const mappedMeds = medsDataRaw.map((m: any) => {
                 let schedules = m.schedules;
@@ -171,9 +171,8 @@ const MainLayout: React.FC<MainLayoutProps> = ({ user, onLogout, users, setUsers
                     stock: m.stock,
                     stockUnit: m.stock_unit,
                     provenance: m.provenance,
-                    // MAPEO DE COLUMNAS DB -> FRONTEND
-                    acquisitionDate: m.fecha_de_adquisicion, // Columna personalizada manual
-                    acquisitionQuantity: m.cantidad_de_adquisicion, // Columna personalizada manual
+                    acquisitionDate: m.fecha_de_adquisicion, 
+                    acquisitionQuantity: m.cantidad_de_adquisicion, 
                     deliveryDate: m.delivery_date,
                     stockUpdatedAt: m.stock_updated_at,
                     displayOrder: m.orden_personalizado || 0
@@ -186,18 +185,72 @@ const MainLayout: React.FC<MainLayoutProps> = ({ user, onLogout, users, setUsers
              if (residentMedications.length === 0) setResidentMedications([]);
         }
 
-        // Fetch Reports
-        const { data: reportsData } = await supabase.from('medical_reports').select('*');
-        if (reportsData) {
-            const mappedReports = reportsData.map((r: any) => ({
+        // 4. FETCH REPORTS (MERGED LOGIC: SQL + STORAGE)
+        // A) Cargar desde tabla SQL (Históricos Base64 y Nuevos con URL)
+        const { data: sqlReportsData } = await supabase.from('medical_reports').select('*');
+        let combinedReports: MedicalReport[] = [];
+
+        if (sqlReportsData) {
+            combinedReports = sqlReportsData.map((r: any) => ({
                 id: r.id,
                 residentId: r.resident_id,
                 fileName: r.file_name,
                 fileData: r.file_data,
                 uploadDate: r.upload_date
             }));
-            setMedicalReports(mappedReports);
         }
+
+        // B) Cargar desde Storage directamente (Para encontrar archivos que no se guardaron en SQL)
+        if (currentResidents.length > 0) {
+            // Buscamos archivos para cada residente activo
+            const storagePromises = currentResidents.map(async (res) => {
+                const folderName = `resident_${res.id}`;
+                const { data: files } = await supabase.storage.from('documentos').list(folderName);
+                
+                if (!files || files.length === 0) return [];
+
+                return files.map(file => {
+                    // Ignorar placeholders
+                    if (file.name === '.emptyFolderPlaceholder') return null;
+
+                    const { data: { publicUrl } } = supabase.storage
+                        .from('documentos')
+                        .getPublicUrl(`${folderName}/${file.name}`);
+
+                    // DEDUPLICACIÓN INTELIGENTE:
+                    // Si el archivo ya existe en SQL (verificando si la URL de SQL contiene el nombre del archivo del bucket),
+                    // ignoramos la versión directa de Storage para no duplicar en la lista.
+                    const existsInSql = combinedReports.some(sqlR => 
+                        (sqlR.residentId === res.id) && 
+                        (sqlR.fileData.includes(file.name) || sqlR.fileName === file.name)
+                    );
+
+                    if (existsInSql) return null;
+
+                    // Es un archivo "huérfano" en la nube o subido por otro medio -> Lo agregamos
+                    return {
+                        id: `storage-${file.id}`,
+                        residentId: res.id,
+                        fileName: file.name, // Usamos el nombre del archivo físico
+                        fileData: publicUrl,
+                        uploadDate: file.created_at || new Date().toISOString()
+                    } as MedicalReport;
+                });
+            });
+
+            const storageResults = await Promise.all(storagePromises);
+            
+            // Aplanamos resultados y filtramos nulos
+            const validStorageReports = storageResults.flat().filter(r => r !== null) as MedicalReport[];
+            
+            // Combinamos ambas listas
+            combinedReports = [...combinedReports, ...validStorageReports];
+        }
+        
+        // Ordenar por fecha de subida (descendente)
+        combinedReports.sort((a, b) => new Date(b.uploadDate).getTime() - new Date(a.uploadDate).getTime());
+
+        setMedicalReports(combinedReports);
 
       } catch (error: any) {
         console.error("Error loading data from Supabase", error.message || error);
