@@ -89,9 +89,17 @@ const MainLayout: React.FC<MainLayoutProps> = ({ user, onLogout, users, setUsers
 
       if (updates.length > 0) {
           for (const update of updates) {
-              await supabase.from('resident_medications')
+              // Intentar actualizar con timestamp
+              const { error } = await supabase.from('resident_medications')
                   .update({ stock: update.stock, stock_updated_at: update.stock_updated_at })
                   .eq('id', update.id);
+              
+              if (error) {
+                  // Fallback: Si falla (ej: no existe columna stock_updated_at), actualizar solo stock
+                  await supabase.from('resident_medications')
+                      .update({ stock: update.stock })
+                      .eq('id', update.id);
+              }
           }
           return true;
       }
@@ -163,8 +171,9 @@ const MainLayout: React.FC<MainLayoutProps> = ({ user, onLogout, users, setUsers
                     stock: m.stock,
                     stockUnit: m.stock_unit,
                     provenance: m.provenance,
-                    acquisitionDate: m.acquisition_date,
-                    acquisitionQuantity: m.acquisition_quantity,
+                    // MAPEO DE COLUMNAS DB -> FRONTEND
+                    acquisitionDate: m.fecha_de_adquisicion, // Columna personalizada manual
+                    acquisitionQuantity: m.cantidad_de_adquisicion, // Columna personalizada manual
                     deliveryDate: m.delivery_date,
                     stockUpdatedAt: m.stock_updated_at,
                     displayOrder: m.orden_personalizado || 0
@@ -439,7 +448,8 @@ const MainLayout: React.FC<MainLayoutProps> = ({ user, onLogout, users, setUsers
             };
         }
 
-        const basePayload = {
+        // MAPEO DIRECTO A LAS COLUMNAS ESPECIFICAS (Sin fallback)
+        const fullPayload = {
             id: medToSave.id,
             resident_id: medToSave.residentId,
             medication_name: medToSave.medicationName,
@@ -450,25 +460,19 @@ const MainLayout: React.FC<MainLayoutProps> = ({ user, onLogout, users, setUsers
             stock_unit: medToSave.stockUnit,
             provenance: medToSave.provenance,
             delivery_date: medToSave.deliveryDate,
-            acquisition_date: medToSave.acquisitionDate,
-            acquisition_quantity: medToSave.acquisitionQuantity,
-        };
-
-        const fullPayload = {
-            ...basePayload,
-            // stock_updated_at: medToSave.stockUpdatedAt, // REMOVED to avoid error
+            
+            // MAPEO EXPLÍCITO A LAS COLUMNAS CREADAS MANUALMENTE
+            fecha_de_adquisicion: medToSave.acquisitionDate, 
+            cantidad_de_adquisicion: medToSave.acquisitionQuantity,
+            
+            stock_updated_at: medToSave.stockUpdatedAt,
             orden_personalizado: medToSave.displayOrder ?? 0
         };
 
         const { error } = await supabase.from('resident_medications').upsert(fullPayload);
         
         if (error) {
-            if (error.message.includes('column') || error.code === '42703') {
-                 const { error: retryError } = await supabase.from('resident_medications').upsert(basePayload);
-                 if (retryError) throw retryError;
-            } else {
-                throw error;
-            }
+            throw error; // Lanzar error directamente sin fallback
         }
 
         fetchData(); 
@@ -511,14 +515,21 @@ const MainLayout: React.FC<MainLayoutProps> = ({ user, onLogout, users, setUsers
               stock_unit: m.stockUnit,
               provenance: m.provenance,
               delivery_date: m.deliveryDate,
-              acquisition_date: m.acquisitionDate,
-              acquisition_quantity: m.acquisitionQuantity,
-              // stock_updated_at: m.stockUpdatedAt, // REMOVED
+              
+              // Mapeo explícito para reordenamiento
+              fecha_de_adquisicion: m.acquisitionDate,
+              cantidad_de_adquisicion: m.acquisitionQuantity,
+              
+              // stock_updated_at: m.stockUpdatedAt, 
               orden_personalizado: index
           }));
 
           const { error } = await supabase.from('resident_medications').upsert(upsertPayload);
-          if (error) console.warn("Error reordering medications:", error.message);
+          
+          if (error) {
+              console.error("Error reordering medications:", error.message);
+          }
+
       } catch (e: any) {
            console.error("Unexpected error reordering medications:", e);
       }
