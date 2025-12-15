@@ -667,6 +667,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ user, onLogout, users, setUsers
             onNavigate={setActivePanel}
             lowStockThreshold={lowStockThreshold}
             onUpdateThreshold={handleUpdateThreshold}
+            onForceDailyUpdate={handleForceDailyUpdate}
           />
         );
       case Panel.Residents:
@@ -705,7 +706,6 @@ const MainLayout: React.FC<MainLayoutProps> = ({ user, onLogout, users, setUsers
                   onDeleteUser={handleDeleteUser}
                   onReorderUsers={handleReorderUsers}
                   onRestoreData={handleRestoreData}
-                  onForceDailyUpdate={handleForceDailyUpdate} // NEW PROP
                />;
       default: 
         return (
@@ -716,6 +716,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ user, onLogout, users, setUsers
             onNavigate={setActivePanel}
             lowStockThreshold={lowStockThreshold}
             onUpdateThreshold={handleUpdateThreshold}
+            onForceDailyUpdate={handleForceDailyUpdate}
           />
         );
     }

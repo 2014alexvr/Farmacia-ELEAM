@@ -106,7 +106,7 @@ const AddMedicationModalModern: React.FC<AddMedicationModalProps> = ({ onClose, 
         .map(s => ({ ...s, quantity: Number(s.quantity) }));
 
     const currentVirtualStock = Number(stock);
-    const quantityToAdd = acquisitionQuantity ? Number(acquisitionQuantity) : 0;
+    const quantityToAdd = acquisitionQuantity ? parseFloat(acquisitionQuantity) : 0;
     const finalStock = currentVirtualStock + quantityToAdd;
 
     const finalAcquisitionQuantity = quantityToAdd > 0 
@@ -293,7 +293,7 @@ const AddMedicationModalModern: React.FC<AddMedicationModalProps> = ({ onClose, 
                     {/* Sub-Columna 1: Sumar Stock */}
                     <div className="space-y-4 flex flex-col">
                         <div className="space-y-1">
-                             <label className={labelStyle}>Sumar Stock (Compra/Llegada)</label>
+                             <label className={labelStyle}>SUMAR STOCK (COMPRA/LLEGADA)</label>
                              <input 
                                  type="number" 
                                  step="any"
@@ -321,7 +321,7 @@ const AddMedicationModalModern: React.FC<AddMedicationModalProps> = ({ onClose, 
                     <div className="space-y-4 flex flex-col">
                          {/* Fecha Adquisición (Opcional) */}
                         <div className="space-y-1">
-                            <label className={labelStyle}>Fecha Adquisición (Ref)</label>
+                            <label className={labelStyle}>FECHA ADQUISICIÓN (REF)</label>
                             <input 
                                 type="date" 
                                 value={acquisitionDate} 
