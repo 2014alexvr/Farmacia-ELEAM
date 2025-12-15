@@ -15,6 +15,15 @@ const DOSE_UNITS = ['Mcg', 'Mg', 'Gr', 'Mg/ml', 'NPH', '%', ''];
 const POSOLOGY_UNITS = ['Comp', 'Gotas', 'Puff', 'UI', 'CC', ''];
 const PROVENANCE_OPTIONS: Provenance[] = ['Cesfam', 'Salud Mental', 'Hospital', 'CAE Quilpué', 'CAE Viña', 'Familia', 'Compras', 'Donación'];
 
+// Helper para obtener la fecha de hoy en formato YYYY-MM-DD (Local Time)
+const getTodayDate = () => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+};
+
 const AddMedicationModalModern: React.FC<AddMedicationModalProps> = ({ onClose, onSave, medicationToEdit, lowStockThreshold }) => {
   const [medicationName, setMedicationName] = useState('');
   const [doseValue, setDoseValue] = useState('');
@@ -30,7 +39,9 @@ const AddMedicationModalModern: React.FC<AddMedicationModalProps> = ({ onClose, 
   const [stock, setStock] = useState('');
   const [stockUnit, setStockUnit] = useState('Comp');
   const [provenance, setProvenance] = useState<Provenance>('Cesfam');
-  const [acquisitionDate, setAcquisitionDate] = useState('');
+  
+  // INICIALIZAR CON FECHA DE HOY POR DEFECTO
+  const [acquisitionDate, setAcquisitionDate] = useState(getTodayDate());
   const [acquisitionQuantity, setAcquisitionQuantity] = useState(''); 
   const [deliveryDate, setDeliveryDate] = useState('');
   
@@ -72,7 +83,10 @@ const AddMedicationModalModern: React.FC<AddMedicationModalProps> = ({ onClose, 
       
       setStockUnit(medicationToEdit.stockUnit);
       setProvenance(medicationToEdit.provenance);
-      setAcquisitionDate(medicationToEdit.acquisitionDate || '');
+      
+      // Si ya tiene fecha guardada la usa, si no (o es null), usa hoy
+      setAcquisitionDate(medicationToEdit.acquisitionDate || getTodayDate());
+      
       setAcquisitionQuantity(''); 
       setDeliveryDate(medicationToEdit.deliveryDate || '');
     }
