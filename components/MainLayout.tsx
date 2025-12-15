@@ -8,9 +8,7 @@ import MedicationsPanel from './panels/MedicationsPanel';
 import SummaryCesfamPanel from './panels/SummaryCesfamPanel';
 import SummaryIndividualStockPanel from './panels/SummaryIndividualStockPanel';
 import ResidentMedicationsPanel from './panels/ResidentMedicationsPanel';
-import SummaryMentalHealthPanel from './panels/SummaryMentalHealthPanel';
 import SummaryFamilyPanel from './panels/SummaryFamilyPanel';
-import SummaryPurchasesPanel from './panels/SummaryPurchasesPanel';
 import ConfirmLogoutModal from './panels/ConfirmLogoutModal';
 import MenuIcon from './icons/MenuIcon';
 import AdminAppPanel from './panels/AdminAppPanel';
@@ -47,16 +45,19 @@ const MainLayout: React.FC<MainLayoutProps> = ({ user, onLogout, users, setUsers
       // Si la columna no existe, simplemente omitirá el procesamiento automático.
       const updates = [];
       const now = new Date();
+      // Normalizamos 'ahora' al inicio del día (00:00:00) para comparar fechas calendario, no horas.
+      const todayMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
       
       for (const m of medications) {
           if (!m.stock_updated_at) continue;
 
           const lastUpdateDate = new Date(m.stock_updated_at);
+          // Normalizamos la fecha de última actualización también a las 00:00:00
+          const lastUpdateMidnight = new Date(lastUpdateDate.getFullYear(), lastUpdateDate.getMonth(), lastUpdateDate.getDate());
           
-          const d1 = Date.UTC(lastUpdateDate.getFullYear(), lastUpdateDate.getMonth(), lastUpdateDate.getDate());
-          const d2 = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
-          const msPerDay = 1000 * 60 * 60 * 24;
-          const daysElapsed = Math.floor((d2 - d1) / msPerDay);
+          // Calculamos la diferencia en milisegundos y luego en días
+          const diffTime = todayMidnight.getTime() - lastUpdateMidnight.getTime();
+          const daysElapsed = Math.floor(diffTime / (1000 * 60 * 60 * 24));
 
           if (daysElapsed >= 1) {
              let schedules = m.schedules;
@@ -66,7 +67,8 @@ const MainLayout: React.FC<MainLayoutProps> = ({ user, onLogout, users, setUsers
              if (!Array.isArray(schedules)) schedules = [];
 
              const dailyExpense = schedules.reduce((sum: number, s: any) => {
-                 const q = parseFloat(s.quantity);
+                 let qString = String(s.quantity).replace(',', '.'); 
+                 const q = parseFloat(qString);
                  return sum + (isNaN(q) ? 0 : q);
              }, 0);
              
@@ -77,7 +79,8 @@ const MainLayout: React.FC<MainLayoutProps> = ({ user, onLogout, users, setUsers
                  
                  updates.push({
                      id: m.id,
-                     stock: Number(newStock.toFixed(2)), // Permitir decimales (2 dígitos)
+                     // Guardamos con 2 decimales para precisión, pero como número para la DB
+                     stock: Number(newStock.toFixed(2)), 
                      stock_updated_at: now.toISOString()
                  });
              }
@@ -219,7 +222,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ user, onLogout, users, setUsers
              // 1. Parsing Seguro
              let schedules = m.schedules;
              if (typeof schedules === 'string') {
-                 try { schedules = JSON.parse(schedules); } catch (e) { schedules = []; }
+                 try { schedules = JSON.parse(schedules); } catch(e) { schedules = []; }
              }
              if (!Array.isArray(schedules)) schedules = [];
 
@@ -693,9 +696,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ user, onLogout, users, setUsers
                   user={user}
                   threshold={lowStockThreshold}
                />;
-      case Panel.SummaryMentalHealth: return <SummaryMentalHealthPanel />;
       case Panel.SummaryFamily: return <SummaryFamilyPanel />;
-      case Panel.SummaryPurchases: return <SummaryPurchasesPanel />;
       case Panel.AdminApp: 
         return <AdminAppPanel 
                   currentUser={user} 

@@ -1,5 +1,3 @@
-
-
 import React, { useState } from 'react';
 import { Resident, ResidentMedication, User, MedicalReport } from '../../types';
 import ArrowLeftIcon from '../icons/ArrowLeftIcon';
@@ -11,6 +9,8 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import PrinterIcon from '../icons/PrinterIcon';
 import ShareIcon from '../icons/ShareIcon';
+import ChevronUpIcon from '../icons/ChevronUpIcon';
+import ChevronDownIcon from '../icons/ChevronDownIcon';
 
 interface ResidentMedicationsPanelProps {
   user: User;
@@ -19,6 +19,7 @@ interface ResidentMedicationsPanelProps {
   medications: ResidentMedication[];
   onSaveMedication: (medicationData: Omit<ResidentMedication, 'id' | 'residentId'> | ResidentMedication) => void;
   onDeleteMedication: (medicationId: string) => void;
+  onReorderMedications: (medications: ResidentMedication[]) => void;
   medicalReports: MedicalReport[];
   onSaveReport: (report: MedicalReport) => void;
   onDeleteReport: (reportId: string) => void;
@@ -43,6 +44,7 @@ const ResidentMedicationsPanel: React.FC<ResidentMedicationsPanelProps> = ({
   medications, 
   onSaveMedication, 
   onDeleteMedication,
+  onReorderMedications,
   medicalReports,
   onSaveReport,
   onDeleteReport,
@@ -81,6 +83,19 @@ const ResidentMedicationsPanel: React.FC<ResidentMedicationsPanelProps> = ({
       onDeleteMedication(medicationToDelete.id);
       setMedicationToDelete(null);
     }
+  };
+
+  const moveMedication = (index: number, direction: 'up' | 'down') => {
+      const newMeds = [...medications];
+      const targetIndex = direction === 'up' ? index - 1 : index + 1;
+      
+      if (targetIndex < 0 || targetIndex >= newMeds.length) return;
+
+      const temp = newMeds[index];
+      newMeds[index] = newMeds[targetIndex];
+      newMeds[targetIndex] = temp;
+
+      onReorderMedications(newMeds);
   };
 
   const generatePDF = () => {
@@ -249,7 +264,8 @@ const ResidentMedicationsPanel: React.FC<ResidentMedicationsPanelProps> = ({
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="border-b border-slate-200 bg-slate-50">
-                <th className="px-4 py-4 font-bold text-xs text-slate-400 uppercase tracking-wider rounded-tl-xl">Medicamento</th>
+                {canModify && <th className="px-4 py-4 font-bold text-xs text-slate-400 uppercase tracking-wider text-center print:hidden rounded-tl-xl">Orden</th>}
+                <th className={`px-4 py-4 font-bold text-xs text-slate-400 uppercase tracking-wider ${!canModify ? 'rounded-tl-xl' : ''}`}>Medicamento</th>
                 <th className="px-4 py-4 font-bold text-xs text-slate-400 uppercase tracking-wider">Dosis</th>
                 <th className="px-4 py-4 font-bold text-xs text-slate-400 uppercase tracking-wider">Horarios</th>
                 <th className="px-4 py-4 font-bold text-xs text-slate-400 uppercase tracking-wider">Posología</th>
@@ -261,19 +277,45 @@ const ResidentMedicationsPanel: React.FC<ResidentMedicationsPanelProps> = ({
                 <th className="px-4 py-4 font-bold text-xs text-slate-400 uppercase tracking-wider">Fecha de Entrega</th>
                 <th className="px-4 py-4 font-bold text-xs text-slate-400 uppercase tracking-wider text-center">Adquisición Stock</th>
                 <th className="px-4 py-4 font-bold text-xs text-slate-400 uppercase tracking-wider">Fecha Adquisición Stock</th>
-                
                 <th className="px-4 py-4 font-bold text-xs text-slate-400 uppercase tracking-wider text-center print:hidden rounded-tr-xl">Acciones</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {medications.length > 0 ? (
-                medications.map((med) => {
+                medications.map((med, index) => {
                   const dailyExpense = med.schedules.reduce((sum, s) => sum + s.quantity, 0);
                   const stockDays = dailyExpense > 0 ? Math.floor(med.stock / dailyExpense) : 'N/A';
                   const isLowStock = typeof stockDays === 'number' && stockDays < lowStockThreshold;
+                  const isFirst = index === 0;
+                  const isLast = index === medications.length - 1;
                   
                   return (
                     <tr key={med.id} className={`group hover:bg-slate-50 transition-colors ${isLowStock ? 'bg-red-50/40 hover:bg-red-50/60' : ''}`}>
+                      
+                      {/* Columna de Orden (Inicio) */}
+                      {canModify && (
+                        <td className="p-4 text-center align-top print:hidden">
+                            <div className="flex flex-col items-center gap-1 opacity-50 group-hover:opacity-100 transition-opacity">
+                                <button 
+                                    onClick={(e) => { e.stopPropagation(); moveMedication(index, 'up'); }} 
+                                    disabled={isFirst}
+                                    className={`p-1 rounded-md transition-colors ${isFirst ? 'text-slate-300 cursor-not-allowed' : 'text-slate-600 hover:bg-white hover:text-brand-primary hover:shadow-sm border border-transparent hover:border-slate-200'}`}
+                                    title="Mover arriba"
+                                >
+                                    <ChevronUpIcon className="w-4 h-4" />
+                                </button>
+                                <button 
+                                    onClick={(e) => { e.stopPropagation(); moveMedication(index, 'down'); }} 
+                                    disabled={isLast}
+                                    className={`p-1 rounded-md transition-colors ${isLast ? 'text-slate-300 cursor-not-allowed' : 'text-slate-600 hover:bg-white hover:text-brand-primary hover:shadow-sm border border-transparent hover:border-slate-200'}`}
+                                    title="Mover abajo"
+                                >
+                                    <ChevronDownIcon className="w-4 h-4" />
+                                </button>
+                            </div>
+                        </td>
+                      )}
+
                       <td className="p-4 align-top">
                         <button onClick={() => handleOpenModalForEdit(med)} disabled={!canModify} className={`text-left text-lg font-bold text-slate-800 ${canModify ? 'hover:text-brand-primary transition-colors cursor-pointer' : 'cursor-default'}`}>
                           {med.medicationName}
@@ -327,7 +369,7 @@ const ResidentMedicationsPanel: React.FC<ResidentMedicationsPanelProps> = ({
                 })
               ) : (
                 <tr>
-                  <td colSpan={12} className="text-center p-12 text-slate-400 italic">Este residente no tiene medicamentos registrados.</td>
+                  <td colSpan={13} className="text-center p-12 text-slate-400 italic">Este residente no tiene medicamentos registrados.</td>
                 </tr>
               )}
             </tbody>

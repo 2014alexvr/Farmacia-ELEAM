@@ -7,9 +7,7 @@ import SettingsIcon from './icons/SettingsIcon';
 import ChartBarIcon from './icons/ChartBarIcon';
 import LogoutIcon from './icons/LogoutIcon';
 import HeartPulseIcon from './icons/HeartPulseIcon';
-import BrainIcon from './icons/BrainIcon';
 import FamilyIcon from './icons/FamilyIcon';
-import ShoppingCartIcon from './icons/ShoppingCartIcon';
 import CloseIcon from './icons/CloseIcon';
 import ClipboardListIcon from './icons/ClipboardListIcon';
 
@@ -30,9 +28,7 @@ const panelIcons: Record<Panel, React.ElementType> = {
   [Panel.GeneralInventory]: ClipboardListIcon,
   [Panel.SummaryCesfam]: HeartPulseIcon,
   [Panel.SummaryIndividualStock]: ChartBarIcon,
-  [Panel.SummaryMentalHealth]: BrainIcon,
   [Panel.SummaryFamily]: FamilyIcon,
-  [Panel.SummaryPurchases]: ShoppingCartIcon,
   [Panel.AdminApp]: SettingsIcon,
   [Panel.ResidentMedications]: PillIcon,
   [Panel.LowStockSummary]: ChartBarIcon,

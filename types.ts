@@ -31,9 +31,7 @@ export enum Panel {
   GeneralInventory = 'Inventario General', // New Panel
   SummaryCesfam = 'Bajo Stock Crítico',
   SummaryIndividualStock = 'Resumen de Stock Individual',
-  SummaryMentalHealth = 'Resumen Salud Mental',
   SummaryFamily = 'Resumen Familia',
-  SummaryPurchases = 'Resumen Compras',
   AdminApp = 'Administración App',
   ResidentMedications = 'Medicamentos de Residente', // Panel virtual
   LowStockSummary = 'Medicamentos con Bajo Stock' // Panel virtual
