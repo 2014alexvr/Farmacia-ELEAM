@@ -84,8 +84,9 @@ const AddMedicationModalModern: React.FC<AddMedicationModalProps> = ({ onClose, 
       setStockUnit(medicationToEdit.stockUnit);
       setProvenance(medicationToEdit.provenance);
       
-      // Si ya tiene fecha guardada la usa, si no (o es null), usa hoy
-      setAcquisitionDate(medicationToEdit.acquisitionDate || getTodayDate());
+      // REQUERIMIENTO: Al editar/actualizar stock, establecer SIEMPRE la fecha de hoy por defecto
+      // para facilitar la carga rápida, ignorando la fecha histórica de la base de datos.
+      setAcquisitionDate(getTodayDate());
       
       setAcquisitionQuantity(''); 
       setDeliveryDate(medicationToEdit.deliveryDate || '');
