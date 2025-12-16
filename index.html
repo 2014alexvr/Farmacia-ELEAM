@@ -5,6 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>FARMACIA ELEAM EL NAZARENO</title>
     
+    <!-- PWA Settings -->
+    <link rel="manifest" href="/manifest.json" />
+    <meta name="theme-color" content="#0d9488" />
+    <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/3004/3004458.png">
+    
     <!-- Google Fonts: Plus Jakarta Sans for a modern, geometric look -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -72,5 +77,6 @@
   <body class="bg-surface-ground text-slate-800 antialiased">
     <div id="root"></div>
     <script type="module" src="/index.tsx"></script>
+    <!-- Service Worker registration removed to prevent Hosting 403 Forbidden errors -->
   </body>
 </html>
