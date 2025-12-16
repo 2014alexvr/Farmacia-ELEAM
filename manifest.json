@@ -1,19 +1,19 @@
 {
   "name": "Farmacia ELEAM El Nazareno",
   "short_name": "Farmacia ELEAM",
-  "start_url": ".",
+  "start_url": "https://farmaciaeleam.com/",
   "display": "standalone",
   "background_color": "#f8fafc",
   "theme_color": "#0d9488",
   "orientation": "portrait",
   "icons": [
     {
-      "src": "https://cdn-icons-png.flaticon.com/512/3004/3004458.png",
+      "src": "/icono-farmacia.png",
       "sizes": "192x192",
       "type": "image/png"
     },
     {
-      "src": "https://cdn-icons-png.flaticon.com/512/3004/3004458.png",
+      "src": "/icono-farmacia.png",
       "sizes": "512x512",
       "type": "image/png"
     }
