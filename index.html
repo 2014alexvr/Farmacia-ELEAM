@@ -2,24 +2,20 @@
 <html lang="es">
   <head>
     <meta charset="UTF-8" />
+    
+    <!-- CACHE CONTROL: Force browser to re-validate index.html -->
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+    <meta http-equiv="Pragma" content="no-cache" />
+    <meta http-equiv="Expires" content="0" />
+
+    <!-- VIEWPORT: Fixed for Zoom (User Scalable) -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes" />
+    
     <title>FARMACIA ELEAM EL NAZARENO</title>
     
-    <!-- Service Worker Exterminator: Force unregister to fix 403 errors on Android -->
-    <script>
-      if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.getRegistrations().then(function(registrations) {
-          for(let registration of registrations) {
-            registration.unregister().then(function() {
-              console.log('Service Worker Zombie eliminado');
-            });
-          }
-        });
-      }
-    </script>
+    <!-- NOTE: The manifest link and Service Worker registration are now INJECTED AUTOMATICALLY by VitePWA -->
+    <!-- Do not add <link rel="manifest"> here manually to avoid version conflicts -->
 
-    <!-- PWA Settings -->
-    <link rel="manifest" href="/manifest.json" />
     <meta name="theme-color" content="#0d9488" />
     <link rel="apple-touch-icon" href="/icono-farmacia.png">
     <link rel="icon" href="/icono-farmacia.png" type="image/png">
@@ -83,7 +79,10 @@
     "react": "https://aistudiocdn.com/react@^19.2.0",
     "jspdf": "https://esm.sh/jspdf@2.5.1",
     "jspdf-autotable": "https://esm.sh/jspdf-autotable@3.8.1",
-    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2.39.3"
+    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2.39.3",
+    "@vitejs/plugin-react": "https://esm.sh/@vitejs/plugin-react@^5.1.2",
+    "vite": "https://esm.sh/vite@^7.3.0",
+    "vite-plugin-pwa": "https://esm.sh/vite-plugin-pwa@^1.2.0"
   }
 }
 </script>

@@ -191,7 +191,7 @@ const ResidentMedicationsPanel: React.FC<ResidentMedicationsPanelProps> = ({
   };
 
   return (
-    <div className="animate-fade-in-down">
+    <div className="animate-fade-in-down w-full max-w-full">
       <button onClick={onBack} className="flex items-center text-slate-500 font-semibold mb-6 hover:text-brand-primary transition-colors print:hidden group text-sm">
         <div className="p-1 bg-white rounded-full shadow-sm mr-2 group-hover:bg-brand-light transition-colors">
             <ArrowLeftIcon className="w-4 h-4" />
@@ -199,29 +199,30 @@ const ResidentMedicationsPanel: React.FC<ResidentMedicationsPanelProps> = ({
         Volver al listado
       </button>
 
-      <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center mb-6 gap-6">
+      {/* Header Container - Responsive Flex */}
+      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-6 gap-6 w-full">
           <div>
             <h1 className="text-2xl font-extrabold text-slate-800 tracking-tight">{`Ficha de Medicamentos`}</h1>
             <p className="text-slate-500 font-medium mt-1 text-sm">{resident.name}</p>
           </div>
-          <div className="flex flex-wrap gap-2 print:hidden">
+          <div className="flex flex-wrap gap-2 print:hidden w-full lg:w-auto">
               <button 
                   onClick={handleExportPDF} 
-                  className="flex items-center px-4 py-2 bg-brand-primary text-white font-bold rounded-xl shadow-lg shadow-brand-primary/30 hover:bg-brand-dark transition-all active:scale-95 text-xs"
+                  className="flex-1 lg:flex-none justify-center flex items-center px-4 py-2 bg-brand-primary text-white font-bold rounded-xl shadow-lg shadow-brand-primary/30 hover:bg-brand-dark transition-all active:scale-95 text-xs"
               >
                   <PrinterIcon className="w-4 h-4 mr-2" />
                   Descargar
               </button>
               <button 
                   onClick={handleShareList} 
-                  className="flex items-center px-4 py-2 bg-brand-primary text-white font-bold rounded-xl shadow-lg shadow-brand-primary/30 hover:bg-brand-dark transition-all active:scale-95 text-xs"
+                  className="flex-1 lg:flex-none justify-center flex items-center px-4 py-2 bg-brand-primary text-white font-bold rounded-xl shadow-lg shadow-brand-primary/30 hover:bg-brand-dark transition-all active:scale-95 text-xs"
               >
                   <ShareIcon className="w-4 h-4 mr-2" />
                   Compartir
               </button>
               <button 
                   onClick={() => setIsReportModalOpen(true)} 
-                  className="flex items-center px-4 py-2 bg-brand-primary text-white font-bold rounded-xl shadow-lg shadow-brand-primary/30 hover:bg-brand-dark transition-all active:scale-95 text-xs"
+                  className="flex-1 lg:flex-none justify-center flex items-center px-4 py-2 bg-brand-primary text-white font-bold rounded-xl shadow-lg shadow-brand-primary/30 hover:bg-brand-dark transition-all active:scale-95 text-xs"
               >
                   <DocumentTextIcon className="w-4 h-4 mr-2" />
                   Informes
@@ -229,39 +230,42 @@ const ResidentMedicationsPanel: React.FC<ResidentMedicationsPanelProps> = ({
           </div>
       </div>
 
-      <div className="bg-white p-4 rounded-3xl shadow-soft border border-slate-100 mb-6">
+      {/* Resident Info Card - Full Width */}
+      <div className="bg-white p-4 rounded-3xl shadow-soft border border-slate-100 mb-6 w-full">
         <h2 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">Información del Residente</h2>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div className="p-3 bg-slate-50 rounded-2xl">
+        {/* Responsive Grid: 1 col mobile, 2 col sm, 4 col md */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 w-full">
+          <div className="p-3 bg-slate-50 rounded-2xl w-full">
             <p className="text-[10px] text-slate-400 font-bold uppercase mb-1">Nombre Completo</p>
             <p className="font-bold text-slate-800 text-sm leading-tight">{resident.name}</p>
           </div>
-          <div className="p-3 bg-slate-50 rounded-2xl">
+          <div className="p-3 bg-slate-50 rounded-2xl w-full">
             <p className="text-[10px] text-slate-400 font-bold uppercase mb-1">RUT</p>
             <p className="font-bold text-slate-800 text-sm">{resident.rut}</p>
           </div>
-          <div className="p-3 bg-slate-50 rounded-2xl">
+          <div className="p-3 bg-slate-50 rounded-2xl w-full">
             <p className="text-[10px] text-slate-400 font-bold uppercase mb-1">Fecha Nacimiento</p>
             <p className="font-bold text-slate-800 text-sm">{new Date(resident.dateOfBirth).toLocaleDateString('es-CL', { timeZone: 'UTC' })}</p>
           </div>
-          <div className="p-3 bg-slate-50 rounded-2xl">
+          <div className="p-3 bg-slate-50 rounded-2xl w-full">
             <p className="text-[10px] text-slate-400 font-bold uppercase mb-1">Edad Actual</p>
             <p className="font-bold text-slate-800 text-sm">{age} años</p>
           </div>
         </div>
       </div>
       
-      <div className="bg-white p-4 rounded-3xl shadow-soft border border-slate-100">
-        <div className="flex justify-between items-center mb-4">
+      {/* Table Container - Full Width */}
+      <div className="bg-white p-4 rounded-3xl shadow-soft border border-slate-100 w-full">
+        <div className="flex justify-between items-center mb-4 w-full">
             <h2 className="text-lg font-bold text-slate-800">Listado de Medicamentos</h2>
             {canAdd && (
-              <button onClick={handleOpenModalForAdd} className="px-4 py-2 bg-brand-primary text-white font-bold rounded-xl shadow-lg shadow-brand-primary/30 hover:bg-brand-dark transition-all active:scale-95 print:hidden text-xs">
+              <button onClick={handleOpenModalForAdd} className="px-4 py-2 bg-brand-primary text-white font-bold rounded-xl shadow-lg shadow-brand-primary/30 hover:bg-brand-dark transition-all active:scale-95 print:hidden text-xs whitespace-nowrap">
                   + Agregar
               </button>
             )}
         </div>
-        <div className="overflow-x-auto print:overflow-visible">
-          <table className="w-full text-left border-collapse">
+        <div className="overflow-x-auto print:overflow-visible w-full">
+          <table className="w-full text-left border-collapse min-w-full">
             <thead>
               <tr className="border-b border-slate-200 bg-slate-50">
                 {canModify && <th className="px-2 py-3 font-bold text-[10px] text-slate-400 uppercase tracking-wider text-center print:hidden rounded-tl-xl w-10">#</th>}
