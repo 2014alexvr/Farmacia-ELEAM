@@ -10,6 +10,7 @@ import HeartPulseIcon from './icons/HeartPulseIcon';
 import FamilyIcon from './icons/FamilyIcon';
 import CloseIcon from './icons/CloseIcon';
 import ClipboardListIcon from './icons/ClipboardListIcon';
+import FirstAidIcon from './icons/FirstAidIcon';
 
 interface SidebarProps {
   user: User;
@@ -24,6 +25,7 @@ interface SidebarProps {
 const panelIcons: Record<Panel, React.ElementType> = {
   [Panel.Dashboard]: HomeIcon,
   [Panel.Residents]: UsersIcon,
+  [Panel.GeneralKit]: FirstAidIcon, // Nuevo Icono
   [Panel.Medications]: PillIcon,
   [Panel.GeneralInventory]: ClipboardListIcon,
   [Panel.SummaryCesfam]: HeartPulseIcon,

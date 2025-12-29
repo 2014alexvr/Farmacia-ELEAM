@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
-import { User, Panel, Resident, ResidentMedication, ManagedUser, MedicalReport } from '../types';
+import { User, Panel, Resident, ResidentMedication, ManagedUser, MedicalReport, GeneralMedication } from '../types';
 import { ROLE_PANELS, MOCK_RESIDENTS, MOCK_RESIDENT_MEDICATIONS } from '../constants';
 import Sidebar from './Sidebar';
 import DashboardModern from './panels/DashboardModern';
@@ -13,6 +13,7 @@ import ConfirmLogoutModal from './panels/ConfirmLogoutModal';
 import MenuIcon from './icons/MenuIcon';
 import AdminAppPanel from './panels/AdminAppPanel';
 import GeneralInventoryPanel from './panels/GeneralInventoryPanel';
+import GeneralKitPanel from './panels/GeneralKitPanel';
 import { supabase } from '../supabaseClient';
 
 interface MainLayoutProps {
@@ -35,6 +36,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ user, onLogout, users, setUsers
   const [residents, setResidents] = useState<Resident[]>([]);
   const [residentMedications, setResidentMedications] = useState<ResidentMedication[]>([]);
   const [medicalReports, setMedicalReports] = useState<MedicalReport[]>([]);
+  const [generalKitItems, setGeneralKitItems] = useState<GeneralMedication[]>([]);
   
   // GLOBAL SETTING: Low Stock Threshold (default 7 days)
   const [lowStockThreshold, setLowStockThreshold] = useState<number>(7);
@@ -185,7 +187,29 @@ const MainLayout: React.FC<MainLayoutProps> = ({ user, onLogout, users, setUsers
              if (residentMedications.length === 0) setResidentMedications([]);
         }
 
-        // 4. FETCH REPORTS (MERGED LOGIC: SQL + STORAGE)
+        // 4. FETCH GENERAL KIT (NEW TABLE)
+        // Intentamos ordenar por display_order. Si la columna no existe, Supabase lanzará error, pero lo manejamos.
+        // Si no hay datos, array vacio.
+        const { data: generalKitData, error: kitError } = await supabase
+            .from('farmacia_general_stock')
+            .select('*')
+            .order('display_order', { ascending: true }); // Ordenar por orden personalizado por defecto
+
+        if (generalKitData) {
+            setGeneralKitItems(generalKitData);
+        } else if (kitError) {
+             // Fallback: Si falla ordenar por display_order (ej. columna no existe), intentar nombre
+             if (kitError.code === '42703') { // Column does not exist
+                 const { data: retryData } = await supabase.from('farmacia_general_stock').select('*').order('nombre_medicamento');
+                 if (retryData) setGeneralKitItems(retryData);
+             } else if (kitError.code === '42P01' || kitError.message.includes('schema cache')) {
+                 console.warn("Table 'farmacia_general_stock' not found.");
+             } else {
+                 console.error("Error fetching general kit", kitError.message);
+             }
+        }
+
+        // 5. FETCH REPORTS (MERGED LOGIC: SQL + STORAGE)
         // A) Cargar desde tabla SQL (Históricos Base64 y Nuevos con URL)
         const { data: sqlReportsData } = await supabase.from('medical_reports').select('*');
         let combinedReports: MedicalReport[] = [];
@@ -588,6 +612,76 @@ const MainLayout: React.FC<MainLayoutProps> = ({ user, onLogout, users, setUsers
       }
   }, []);
 
+  // --- General Kit CRUD ---
+  const handleSaveGeneralItem = useCallback(async (item: Omit<GeneralMedication, 'id'> | GeneralMedication) => {
+    try {
+        let dbPayload: any = {
+            nombre_medicamento: item.nombre_medicamento,
+            formato: item.formato,
+            cantidad_total: item.cantidad_total,
+            procedencia: item.procedencia,
+            fecha_adquisicion: item.fecha_adquisicion
+        };
+
+        if ('id' in item) {
+            // EDITAR: Tiene ID, usamos update/upsert
+            dbPayload.id = item.id;
+            // No cambiamos display_order al editar
+            const { error } = await supabase.from('farmacia_general_stock').update(dbPayload).eq('id', item.id);
+            if (error) throw error;
+        } else {
+            // CREAR: No tiene ID, usamos insert explícito. Calculamos el nuevo display_order
+            const maxOrder = generalKitItems.length > 0 ? Math.max(...generalKitItems.map(i => i.display_order || 0)) : 0;
+            dbPayload.display_order = maxOrder + 1;
+
+            const { error } = await supabase.from('farmacia_general_stock').insert(dbPayload);
+            if (error) throw error;
+        }
+
+        fetchData();
+    } catch (e: any) {
+        console.error("Error saving general item:", e.message || e);
+        
+        // Error handling específico para tabla faltante
+        if (e.message?.includes('farmacia_general_stock') || e.message?.includes('schema cache') || e.code === '42P01') {
+            alert("⚠️ ERROR DE CONFIGURACIÓN:\n\nLa tabla 'farmacia_general_stock' no existe en la base de datos.\n\nPor favor, ejecute el script SQL proporcionado en el panel de Supabase.");
+        } else {
+            alert("Error al guardar ítem en botiquín general: " + (e.message || "Error desconocido"));
+        }
+    }
+  }, [fetchData, generalKitItems]);
+
+  const handleDeleteGeneralItem = useCallback(async (itemId: number) => {
+    try {
+        const { error } = await supabase.from('farmacia_general_stock').delete().eq('id', itemId);
+        if (error) throw error;
+        setGeneralKitItems(prev => prev.filter(i => i.id !== itemId));
+    } catch (e: any) {
+         console.error("Error deleting general item:", e.message || e);
+         alert("Error al eliminar ítem.");
+    }
+  }, []);
+
+  const handleReorderGeneralItems = useCallback(async (reorderedItems: GeneralMedication[]) => {
+      setGeneralKitItems(reorderedItems);
+      try {
+          const upsertPayload = reorderedItems.map((item, index) => ({
+              id: item.id,
+              nombre_medicamento: item.nombre_medicamento,
+              formato: item.formato,
+              cantidad_total: item.cantidad_total,
+              procedencia: item.procedencia,
+              fecha_adquisicion: item.fecha_adquisicion,
+              display_order: index
+          }));
+          
+          const { error } = await supabase.from('farmacia_general_stock').upsert(upsertPayload);
+          if(error) throw error;
+      } catch (e: any) {
+          console.error("Error reordering general items:", e.message || e);
+      }
+  }, []);
+
   // --- Reports CRUD ---
   const handleSaveReport = useCallback(async (report: MedicalReport) => {
     try {
@@ -737,6 +831,16 @@ const MainLayout: React.FC<MainLayoutProps> = ({ user, onLogout, users, setUsers
       case Panel.Residents:
         return <ResidentsPanel user={user} onSelectResident={handleSelectResident} residents={residents} onSaveResident={handleSaveResident} onDeleteResident={handleDeleteResident} onReorderResidents={handleReorderResidents} />;
       case Panel.Medications: return <MedicationsPanel />;
+      case Panel.GeneralKit:
+        return (
+            <GeneralKitPanel 
+                user={user}
+                items={generalKitItems}
+                onSaveItem={handleSaveGeneralItem}
+                onDeleteItem={handleDeleteGeneralItem}
+                onReorderItems={handleReorderGeneralItems}
+            />
+        );
       case Panel.GeneralInventory: 
         return (
           <GeneralInventoryPanel 

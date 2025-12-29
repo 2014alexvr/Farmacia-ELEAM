@@ -27,8 +27,9 @@ export interface ManagedUser {
 export enum Panel {
   Dashboard = 'Inicio',
   Residents = 'Residentes',
+  GeneralKit = 'Botiquín General', // New Panel Position
   Medications = 'Medicamentos',
-  GeneralInventory = 'Inventario General', // New Panel
+  GeneralInventory = 'Inventario General',
   SummaryCesfam = 'Bajo Stock Crítico',
   SummaryIndividualStock = 'Resumen de Stock Individual',
   SummaryFamily = 'Resumen Familia',
@@ -43,6 +44,16 @@ export interface Resident {
   rut: string;
   dateOfBirth: string; // YYYY-MM-DD format
   displayOrder?: number;
+}
+
+export interface GeneralMedication {
+  id: number;
+  nombre_medicamento: string;
+  formato: string;
+  cantidad_total: number;
+  procedencia: string;
+  fecha_adquisicion?: string;
+  display_order?: number;
 }
 
 export interface Medication {

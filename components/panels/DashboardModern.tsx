@@ -223,7 +223,7 @@ const DashboardModern: React.FC<DashboardProps> = ({ user, residents, residentMe
                    <div className={!canEditThreshold ? "opacity-50" : ""}>
                       <h3 className="text-xl font-bold text-slate-800 flex items-center gap-2">
                           <SettingsIcon className="w-6 h-6 text-brand-primary" />
-                          Herramientas de Diagnóstico
+                          Herramienta de Diagnóstico
                       </h3>
                       <p className="text-slate-500 mt-1 max-w-xl">
                           Use esta herramienta para <strong>forzar</strong> el descuento del consumo diario inmediatamente. Esto permite verificar que el inventario disminuye sin esperar al día siguiente.
