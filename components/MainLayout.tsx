@@ -865,7 +865,8 @@ const MainLayout: React.FC<MainLayoutProps> = ({ user, onLogout, users, setUsers
             <div className="w-6"></div>
         </header>
         
-        <main className="flex-1 p-6 md:p-10 overflow-y-auto print:overflow-visible print:h-auto print:p-0 print:w-full print:static print:block">
+        {/* Update: Reduced padding on mobile (p-3) to allow more space for the table */}
+        <main className="flex-1 p-3 md:p-10 w-full overflow-y-auto print:overflow-visible print:h-auto print:p-0 print:w-full print:static print:block">
           {renderPanel()}
         </main>
       </div>
