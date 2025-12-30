@@ -188,18 +188,15 @@ const MainLayout: React.FC<MainLayoutProps> = ({ user, onLogout, users, setUsers
         }
 
         // 4. FETCH GENERAL KIT (NEW TABLE)
-        // Intentamos ordenar por display_order. Si la columna no existe, Supabase lanzará error, pero lo manejamos.
-        // Si no hay datos, array vacio.
         const { data: generalKitData, error: kitError } = await supabase
             .from('farmacia_general_stock')
             .select('*')
-            .order('display_order', { ascending: true }); // Ordenar por orden personalizado por defecto
+            .order('display_order', { ascending: true }); 
 
         if (generalKitData) {
             setGeneralKitItems(generalKitData);
         } else if (kitError) {
-             // Fallback: Si falla ordenar por display_order (ej. columna no existe), intentar nombre
-             if (kitError.code === '42703') { // Column does not exist
+             if (kitError.code === '42703') { 
                  const { data: retryData } = await supabase.from('farmacia_general_stock').select('*').order('nombre_medicamento');
                  if (retryData) setGeneralKitItems(retryData);
              } else if (kitError.code === '42P01' || kitError.message.includes('schema cache')) {
@@ -210,7 +207,6 @@ const MainLayout: React.FC<MainLayoutProps> = ({ user, onLogout, users, setUsers
         }
 
         // 5. FETCH REPORTS (MERGED LOGIC: SQL + STORAGE)
-        // A) Cargar desde tabla SQL (Históricos Base64 y Nuevos con URL)
         const { data: sqlReportsData } = await supabase.from('medical_reports').select('*');
         let combinedReports: MedicalReport[] = [];
 
@@ -224,9 +220,8 @@ const MainLayout: React.FC<MainLayoutProps> = ({ user, onLogout, users, setUsers
             }));
         }
 
-        // B) Cargar desde Storage directamente (Para encontrar archivos que no se guardaron en SQL)
+        // B) Cargar desde Storage directamente
         if (currentResidents.length > 0) {
-            // Buscamos archivos para cada residente activo
             const storagePromises = currentResidents.map(async (res) => {
                 const folderName = `resident_${res.id}`;
                 const { data: files } = await supabase.storage.from('documentos').list(folderName);
@@ -234,16 +229,12 @@ const MainLayout: React.FC<MainLayoutProps> = ({ user, onLogout, users, setUsers
                 if (!files || files.length === 0) return [];
 
                 return files.map(file => {
-                    // Ignorar placeholders
                     if (file.name === '.emptyFolderPlaceholder') return null;
 
                     const { data: { publicUrl } } = supabase.storage
                         .from('documentos')
                         .getPublicUrl(`${folderName}/${file.name}`);
 
-                    // DEDUPLICACIÓN INTELIGENTE:
-                    // Si el archivo ya existe en SQL (verificando si la URL de SQL contiene el nombre del archivo del bucket),
-                    // ignoramos la versión directa de Storage para no duplicar en la lista.
                     const existsInSql = combinedReports.some(sqlR => 
                         (sqlR.residentId === res.id) && 
                         (sqlR.fileData.includes(file.name) || sqlR.fileName === file.name)
@@ -251,11 +242,10 @@ const MainLayout: React.FC<MainLayoutProps> = ({ user, onLogout, users, setUsers
 
                     if (existsInSql) return null;
 
-                    // Es un archivo "huérfano" en la nube o subido por otro medio -> Lo agregamos
                     return {
                         id: `storage-${file.id}`,
                         residentId: res.id,
-                        fileName: file.name, // Usamos el nombre del archivo físico
+                        fileName: file.name,
                         fileData: publicUrl,
                         uploadDate: file.created_at || new Date().toISOString()
                     } as MedicalReport;
@@ -263,15 +253,10 @@ const MainLayout: React.FC<MainLayoutProps> = ({ user, onLogout, users, setUsers
             });
 
             const storageResults = await Promise.all(storagePromises);
-            
-            // Aplanamos resultados y filtramos nulos
             const validStorageReports = storageResults.flat().filter(r => r !== null) as MedicalReport[];
-            
-            // Combinamos ambas listas
             combinedReports = [...combinedReports, ...validStorageReports];
         }
         
-        // Ordenar por fecha de subida (descendente)
         combinedReports.sort((a, b) => new Date(b.uploadDate).getTime() - new Date(a.uploadDate).getTime());
 
         setMedicalReports(combinedReports);
@@ -303,16 +288,13 @@ const MainLayout: React.FC<MainLayoutProps> = ({ user, onLogout, users, setUsers
             throw new Error(fetchError?.message || "No se pudieron cargar los datos.");
         }
 
-        // Procesamiento secuencial optimizado
         for (const m of allMeds) {
-             // 1. Parsing Seguro
              let schedules = m.schedules;
              if (typeof schedules === 'string') {
                  try { schedules = JSON.parse(schedules); } catch(e) { schedules = []; }
              }
              if (!Array.isArray(schedules)) schedules = [];
 
-             // 2. Calculo Gasto (Manejo de comas y decimales)
              const dailyExpense = schedules.reduce((sum: number, s: any) => {
                  let qString = String(s.quantity).replace(',', '.'); 
                  const q = parseFloat(qString); 
@@ -321,13 +303,8 @@ const MainLayout: React.FC<MainLayoutProps> = ({ user, onLogout, users, setUsers
 
              if (dailyExpense > 0) {
                  const currentStock = parseFloat(m.stock) || 0;
-                 
-                 // 3. SOPORTE DECIMALES
-                 // Restamos y formateamos a 2 decimales, convirtiendo de nuevo a Number para la DB
                  const newStock = Number(Math.max(0, currentStock - dailyExpense).toFixed(2));
                  
-                 // 4. ACTUALIZAR DB (SOLO CAMPO STOCK)
-                 // No enviamos 'stock_updated_at' porque sabemos que la columna no existe
                  const { error: updateError } = await supabase.from('resident_medications')
                     .update({ stock: newStock })
                     .eq('id', m.id);
@@ -354,7 +331,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ user, onLogout, users, setUsers
         }
 
         alert(message);
-        fetchData(); // Recargar datos visuales
+        fetchData(); 
     } catch (e: any) {
         console.error("Error crítico:", e);
         alert("Error del sistema: " + e.message);
@@ -401,7 +378,6 @@ const MainLayout: React.FC<MainLayoutProps> = ({ user, onLogout, users, setUsers
             stock_unit: m.stockUnit,
             provenance: m.provenance,
             delivery_date: m.deliveryDate,
-            // Omitimos stock_updated_at para evitar errores si la columna no existe
         }));
 
         const { error: medError } = await supabase.from('resident_medications').upsert(medsPayload);
@@ -525,7 +501,6 @@ const MainLayout: React.FC<MainLayoutProps> = ({ user, onLogout, users, setUsers
             };
         }
 
-        // MAPEO DIRECTO A LAS COLUMNAS ESPECIFICAS (Sin fallback)
         const fullPayload = {
             id: medToSave.id,
             resident_id: medToSave.residentId,
@@ -537,11 +512,8 @@ const MainLayout: React.FC<MainLayoutProps> = ({ user, onLogout, users, setUsers
             stock_unit: medToSave.stockUnit,
             provenance: medToSave.provenance,
             delivery_date: medToSave.deliveryDate,
-            
-            // MAPEO EXPLÍCITO A LAS COLUMNAS CREADAS MANUALMENTE
             fecha_de_adquisicion: medToSave.acquisitionDate, 
             cantidad_de_adquisicion: medToSave.acquisitionQuantity,
-            
             stock_updated_at: medToSave.stockUpdatedAt,
             orden_personalizado: medToSave.displayOrder ?? 0
         };
@@ -549,7 +521,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ user, onLogout, users, setUsers
         const { error } = await supabase.from('resident_medications').upsert(fullPayload);
         
         if (error) {
-            throw error; // Lanzar error directamente sin fallback
+            throw error; 
         }
 
         fetchData(); 
@@ -592,12 +564,8 @@ const MainLayout: React.FC<MainLayoutProps> = ({ user, onLogout, users, setUsers
               stock_unit: m.stockUnit,
               provenance: m.provenance,
               delivery_date: m.deliveryDate,
-              
-              // Mapeo explícito para reordenamiento
               fecha_de_adquisicion: m.acquisitionDate,
               cantidad_de_adquisicion: m.acquisitionQuantity,
-              
-              // stock_updated_at: m.stockUpdatedAt, 
               orden_personalizado: index
           }));
 
@@ -624,16 +592,12 @@ const MainLayout: React.FC<MainLayoutProps> = ({ user, onLogout, users, setUsers
         };
 
         if ('id' in item) {
-            // EDITAR: Tiene ID, usamos update/upsert
             dbPayload.id = item.id;
-            // No cambiamos display_order al editar
             const { error } = await supabase.from('farmacia_general_stock').update(dbPayload).eq('id', item.id);
             if (error) throw error;
         } else {
-            // CREAR: No tiene ID, usamos insert explícito. Calculamos el nuevo display_order
             const maxOrder = generalKitItems.length > 0 ? Math.max(...generalKitItems.map(i => i.display_order || 0)) : 0;
             dbPayload.display_order = maxOrder + 1;
-
             const { error } = await supabase.from('farmacia_general_stock').insert(dbPayload);
             if (error) throw error;
         }
@@ -641,10 +605,8 @@ const MainLayout: React.FC<MainLayoutProps> = ({ user, onLogout, users, setUsers
         fetchData();
     } catch (e: any) {
         console.error("Error saving general item:", e.message || e);
-        
-        // Error handling específico para tabla faltante
         if (e.message?.includes('farmacia_general_stock') || e.message?.includes('schema cache') || e.code === '42P01') {
-            alert("⚠️ ERROR DE CONFIGURACIÓN:\n\nLa tabla 'farmacia_general_stock' no existe en la base de datos.\n\nPor favor, ejecute el script SQL proporcionado en el panel de Supabase.");
+            alert("⚠️ ERROR DE CONFIGURACIÓN:\n\nLa tabla 'farmacia_general_stock' no existe en la base de datos.");
         } else {
             alert("Error al guardar ítem en botiquín general: " + (e.message || "Error desconocido"));
         }
@@ -893,16 +855,21 @@ const MainLayout: React.FC<MainLayoutProps> = ({ user, onLogout, users, setUsers
   return (
     <div className="relative min-h-screen md:flex bg-surface-ground font-sans text-slate-600 print:block print:bg-white print:overflow-visible print:h-auto">
       <Sidebar user={user} activePanel={activePanel} setActivePanel={setActivePanel} onLogout={handleLogoutClick} availablePanels={availablePanels} isMobileOpen={isSidebarOpen} setIsMobileOpen={setIsSidebarOpen} />
-      <div className="flex-1 flex flex-col w-full md:w-auto print:block print:w-full print:static">
+      
+      {/* FIXED: Removed restrictive md:w-auto, added min-w-0 for proper flex behavior */}
+      <div className="flex-1 flex flex-col w-full min-w-0 print:block print:w-full print:static">
+        
         <header className="md:hidden bg-white shadow-sm flex justify-between items-center p-4 sticky top-0 z-10 border-b border-slate-200 print:hidden">
             <button onClick={() => setIsSidebarOpen(true)} className="text-slate-600 hover:text-brand-primary"><MenuIcon className="w-6 h-6" /></button>
             <h1 className="text-lg font-bold text-slate-800">{activePanel}</h1>
             <div className="w-6"></div>
         </header>
+        
         <main className="flex-1 p-6 md:p-10 overflow-y-auto print:overflow-visible print:h-auto print:p-0 print:w-full print:static print:block">
           {renderPanel()}
         </main>
       </div>
+      
       {isLogoutModalOpen && <ConfirmLogoutModal onConfirm={handleConfirmLogout} onCancel={() => setIsLogoutModalOpen(false)} />}
     </div>
   );

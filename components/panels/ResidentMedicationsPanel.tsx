@@ -11,6 +11,7 @@ import PrinterIcon from '../icons/PrinterIcon';
 import ShareIcon from '../icons/ShareIcon';
 import ChevronUpIcon from '../icons/ChevronUpIcon';
 import ChevronDownIcon from '../icons/ChevronDownIcon';
+import TrashIcon from '../icons/TrashIcon';
 
 interface ResidentMedicationsPanelProps {
   user: User;
@@ -170,17 +171,13 @@ const ResidentMedicationsPanel: React.FC<ResidentMedicationsPanelProps> = ({
             text: `Adjunto listado de medicamentos de ${resident.name}.`,
         };
 
-        // Check if file sharing is supported
         if (navigator.canShare && navigator.canShare(shareData)) {
             await navigator.share(shareData);
         } else {
-            // Fallback for browsers that support share but not files
-            console.warn("El dispositivo soporta compartir, pero no archivos directamente. Descargando...");
             doc.save(fileName);
-            alert("Su dispositivo no permite compartir archivos directamente desde la web. Se ha descargado el PDF para que pueda compartirlo manualmente.");
+            alert("Su dispositivo no permite compartir archivos directamente desde la web. Se ha descargado el PDF.");
         }
       } else {
-        // Fallback for desktop/unsupported browsers
         doc.save(fileName);
         alert("Su dispositivo no soporta la función de compartir. Se ha descargado el PDF.");
       }
@@ -190,17 +187,22 @@ const ResidentMedicationsPanel: React.FC<ResidentMedicationsPanelProps> = ({
     }
   };
 
+  // LAYOUT FIX: Main container is now a flex column taking full width
   return (
-    <div className="animate-fade-in-down w-full max-w-full">
-      <button onClick={onBack} className="flex items-center text-slate-500 font-semibold mb-6 hover:text-brand-primary transition-colors print:hidden group text-sm">
-        <div className="p-1 bg-white rounded-full shadow-sm mr-2 group-hover:bg-brand-light transition-colors">
-            <ArrowLeftIcon className="w-4 h-4" />
-        </div>
-        Volver al listado
-      </button>
+    <div className="flex flex-col w-full space-y-6 animate-fade-in-down">
+      
+      {/* Navigation Button */}
+      <div className="w-full">
+        <button onClick={onBack} className="flex items-center text-slate-500 font-semibold hover:text-brand-primary transition-colors print:hidden group text-sm">
+            <div className="p-1 bg-white rounded-full shadow-sm mr-2 group-hover:bg-brand-light transition-colors">
+                <ArrowLeftIcon className="w-4 h-4" />
+            </div>
+            Volver al listado
+        </button>
+      </div>
 
       {/* Header Container - Responsive Flex */}
-      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-6 gap-6 w-full">
+      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 w-full">
           <div>
             <h1 className="text-2xl font-extrabold text-slate-800 tracking-tight">{`Ficha de Medicamentos`}</h1>
             <p className="text-slate-500 font-medium mt-1 text-sm">{resident.name}</p>
@@ -230,10 +232,10 @@ const ResidentMedicationsPanel: React.FC<ResidentMedicationsPanelProps> = ({
           </div>
       </div>
 
-      {/* Resident Info Card - Full Width */}
-      <div className="bg-white p-4 rounded-3xl shadow-soft border border-slate-100 mb-6 w-full">
+      {/* Resident Info Card - FORCED WIDTH 100% */}
+      <div className="w-full bg-white p-4 rounded-3xl shadow-soft border border-slate-100">
         <h2 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">Información del Residente</h2>
-        {/* Responsive Grid: 1 col mobile, 2 col sm, 4 col md */}
+        {/* Grid Responsive: 1 column on mobile (default), 2 on sm, 4 on md */}
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 w-full">
           <div className="p-3 bg-slate-50 rounded-2xl w-full">
             <p className="text-[10px] text-slate-400 font-bold uppercase mb-1">Nombre Completo</p>
@@ -254,8 +256,8 @@ const ResidentMedicationsPanel: React.FC<ResidentMedicationsPanelProps> = ({
         </div>
       </div>
       
-      {/* Table Container - Full Width */}
-      <div className="bg-white p-4 rounded-3xl shadow-soft border border-slate-100 w-full">
+      {/* Table Container - FORCED WIDTH 100% */}
+      <div className="w-full bg-white p-4 rounded-3xl shadow-soft border border-slate-100">
         <div className="flex justify-between items-center mb-4 w-full">
             <h2 className="text-lg font-bold text-slate-800">Listado de Medicamentos</h2>
             {canAdd && (
@@ -264,8 +266,10 @@ const ResidentMedicationsPanel: React.FC<ResidentMedicationsPanelProps> = ({
               </button>
             )}
         </div>
-        <div className="overflow-x-auto print:overflow-visible w-full">
-          <table className="w-full text-left border-collapse min-w-full">
+        
+        {/* SCROLLABLE TABLE CONTAINER */}
+        <div className="w-full overflow-x-auto print:overflow-visible">
+          <table className="w-full min-w-full text-left border-collapse">
             <thead>
               <tr className="border-b border-slate-200 bg-slate-50">
                 {canModify && <th className="px-2 py-3 font-bold text-[10px] text-slate-400 uppercase tracking-wider text-center print:hidden rounded-tl-xl w-10">#</th>}
@@ -278,11 +282,8 @@ const ResidentMedicationsPanel: React.FC<ResidentMedicationsPanelProps> = ({
                 <th className="px-2 py-3 font-bold text-[10px] text-slate-400 uppercase tracking-wider text-center">Días</th>
                 <th className="px-2 py-3 font-bold text-[10px] text-slate-400 uppercase tracking-wider">Origen</th>
                 <th className="px-2 py-3 font-bold text-[10px] text-slate-400 uppercase tracking-wider">F. Entrega</th>
-                
-                {/* Nuevas Columnas Solicitadas */}
                 <th className="px-2 py-3 font-bold text-[10px] text-slate-400 uppercase tracking-wider text-center">CANT. ADQ.</th>
                 <th className="px-2 py-3 font-bold text-[10px] text-slate-400 uppercase tracking-wider">F. ADQ.</th>
-                
                 <th className="px-2 py-3 font-bold text-[10px] text-slate-400 uppercase tracking-wider text-center print:hidden rounded-tr-xl">Acciones</th>
               </tr>
             </thead>
@@ -298,7 +299,6 @@ const ResidentMedicationsPanel: React.FC<ResidentMedicationsPanelProps> = ({
                   return (
                     <tr key={med.id} className={`group hover:bg-slate-50 transition-colors ${isLowStock ? 'bg-red-50/40 hover:bg-red-50/60' : ''}`}>
                       
-                      {/* Columna de Orden (Inicio) */}
                       {canModify && (
                         <td className="px-2 py-3 text-center align-top print:hidden">
                             <div className="flex flex-col items-center gap-0.5 opacity-50 group-hover:opacity-100 transition-opacity">
@@ -306,7 +306,6 @@ const ResidentMedicationsPanel: React.FC<ResidentMedicationsPanelProps> = ({
                                     onClick={(e) => { e.stopPropagation(); moveMedication(index, 'up'); }} 
                                     disabled={isFirst}
                                     className={`p-0.5 rounded-md transition-colors ${isFirst ? 'text-slate-300 cursor-not-allowed' : 'text-slate-600 hover:bg-white hover:text-brand-primary hover:shadow-sm border border-transparent hover:border-slate-200'}`}
-                                    title="Mover arriba"
                                 >
                                     <ChevronUpIcon className="w-3 h-3" />
                                 </button>
@@ -314,7 +313,6 @@ const ResidentMedicationsPanel: React.FC<ResidentMedicationsPanelProps> = ({
                                     onClick={(e) => { e.stopPropagation(); moveMedication(index, 'down'); }} 
                                     disabled={isLast}
                                     className={`p-0.5 rounded-md transition-colors ${isLast ? 'text-slate-300 cursor-not-allowed' : 'text-slate-600 hover:bg-white hover:text-brand-primary hover:shadow-sm border border-transparent hover:border-slate-200'}`}
-                                    title="Mover abajo"
                                 >
                                     <ChevronDownIcon className="w-3 h-3" />
                                 </button>
@@ -351,22 +349,17 @@ const ResidentMedicationsPanel: React.FC<ResidentMedicationsPanelProps> = ({
                       <td className="px-2 py-3 text-slate-600 align-top font-medium text-xs whitespace-nowrap">
                         {med.deliveryDate ? new Date(med.deliveryDate).toLocaleDateString('es-CL', { timeZone: 'UTC' }) : 'N/A'}
                       </td>
-
-                      {/* Datos de Adquisición */}
                       <td className="px-2 py-3 text-slate-600 align-top font-bold text-xs text-center">
                         {med.acquisitionQuantity ? med.acquisitionQuantity : '-'}
                       </td>
                       <td className="px-2 py-3 text-slate-600 align-top font-medium text-xs whitespace-nowrap">
                         {med.acquisitionDate ? new Date(med.acquisitionDate).toLocaleDateString('es-CL', { timeZone: 'UTC' }) : 'N/A'}
                       </td>
-
                       <td className="px-2 py-3 text-center align-top print:hidden">
                         {canDelete && (
                           <button onClick={() => setMedicationToDelete(med)} className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all opacity-0 group-hover:opacity-100">
                              <span className="sr-only">Eliminar</span>
-                             <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                             </svg>
+                             <TrashIcon className="w-4 h-4" />
                           </button>
                         )}
                       </td>
