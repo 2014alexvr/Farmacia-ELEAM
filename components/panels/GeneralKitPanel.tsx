@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import { GeneralMedication, User } from '../../types';
 import AddGeneralKitModal from './AddGeneralKitModal';
 import ConfirmDeleteModal from './ConfirmDeleteModal';
@@ -15,7 +15,7 @@ interface GeneralKitPanelProps {
   onSaveItem: (item: Omit<GeneralMedication, 'id'> | GeneralMedication) => Promise<void>;
   onDeleteItem: (itemId: number) => Promise<void>;
   onReorderItems: (items: GeneralMedication[]) => Promise<void>;
-  onImportList: () => Promise<void>;
+  onImportList: (file: File) => Promise<void>;
 }
 
 type SortField = 'manual' | 'name' | 'stock';
@@ -26,6 +26,9 @@ const GeneralKitPanel: React.FC<GeneralKitPanelProps> = ({ user, items, onSaveIt
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [itemToEdit, setItemToEdit] = useState<GeneralMedication | undefined>(undefined);
   const [itemToDelete, setItemToDelete] = useState<GeneralMedication | null>(null);
+
+  // Hidden input ref for file selection
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [sortField, setSortField] = useState<SortField>('manual');
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
@@ -89,12 +92,25 @@ const GeneralKitPanel: React.FC<GeneralKitPanelProps> = ({ user, items, onSaveIt
     }
   };
 
-  const handleImportClick = async () => {
-      console.log("Iniciando carga de lista de imagen...");
-      try {
-          await onImportList();
-      } catch (e: any) {
-          alert("Error al importar lista: " + (e.message || "Error desconocido."));
+  const handleImportClick = () => {
+      // Trigger the hidden file input
+      if (fileInputRef.current) {
+          fileInputRef.current.click();
+      }
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+      if (e.target.files && e.target.files[0]) {
+          const file = e.target.files[0];
+          try {
+              // Pass the real file to the parent handler
+              await onImportList(file);
+          } catch (e: any) {
+              alert("Error al importar lista: " + (e.message || "Error desconocido."));
+          } finally {
+              // Reset input so the same file can be selected again if needed
+              if (fileInputRef.current) fileInputRef.current.value = '';
+          }
       }
   };
 
@@ -136,6 +152,15 @@ const GeneralKitPanel: React.FC<GeneralKitPanelProps> = ({ user, items, onSaveIt
 
   return (
     <div className="animate-fade-in-down pb-20">
+      {/* Hidden File Input */}
+      <input 
+        type="file" 
+        ref={fileInputRef} 
+        onChange={handleFileChange} 
+        accept="image/*" 
+        className="hidden" 
+      />
+
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-6">
         <div>
             <h1 className="text-3xl font-extrabold text-slate-800 tracking-tight flex items-center gap-3">
