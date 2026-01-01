@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { User, Panel, Resident, ResidentMedication, ManagedUser, MedicalReport, GeneralMedication } from '../types';
-import { ROLE_PANELS, MOCK_RESIDENTS, MOCK_RESIDENT_MEDICATIONS } from '../constants';
+import { ROLE_PANELS, MOCK_RESIDENTS, INITIAL_GENERAL_KIT_DATA } from '../constants';
 import Sidebar from './Sidebar';
 import DashboardModern from './panels/DashboardModern';
 import { ResidentsPanel } from './panels/ResidentsPanel';
@@ -38,840 +38,328 @@ const MainLayout: React.FC<MainLayoutProps> = ({ user, onLogout, users, setUsers
   const [medicalReports, setMedicalReports] = useState<MedicalReport[]>([]);
   const [generalKitItems, setGeneralKitItems] = useState<GeneralMedication[]>([]);
   
-  // GLOBAL SETTING: Low Stock Threshold (default 7 days)
   const [lowStockThreshold, setLowStockThreshold] = useState<number>(7);
 
-  // --- CORE LOGIC: STOCK DEDUCTION (CATCH-UP) ---
-  const processStockCatchUp = async (medications: any[]) => {
-      // Nota: Esta función requiere la columna 'stock_updated_at' en la base de datos.
-      // Si la columna no existe, simplemente omitirá el procesamiento automático.
-      const updates = [];
-      const now = new Date();
-      // Normalizamos 'ahora' al inicio del día (00:00:00) para comparar fechas calendario, no horas.
-      const todayMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-      
-      for (const m of medications) {
-          if (!m.stock_updated_at) continue;
-
-          const lastUpdateDate = new Date(m.stock_updated_at);
-          // Normalizamos la fecha de última actualización también a las 00:00:00
-          const lastUpdateMidnight = new Date(lastUpdateDate.getFullYear(), lastUpdateDate.getMonth(), lastUpdateDate.getDate());
-          
-          // Calculamos la diferencia en milisegundos y luego en días
-          const diffTime = todayMidnight.getTime() - lastUpdateMidnight.getTime();
-          const daysElapsed = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-
-          if (daysElapsed >= 1) {
-             let schedules = m.schedules;
-             if (typeof schedules === 'string') {
-                 try { schedules = JSON.parse(schedules); } catch(e) { schedules = []; }
-             }
-             if (!Array.isArray(schedules)) schedules = [];
-
-             const dailyExpense = schedules.reduce((sum: number, s: any) => {
-                 let qString = String(s.quantity).replace(',', '.'); 
-                 const q = parseFloat(qString);
-                 return sum + (isNaN(q) ? 0 : q);
-             }, 0);
-             
-             if (dailyExpense > 0) {
-                 const currentStock = parseFloat(m.stock) || 0;
-                 const totalDeduction = dailyExpense * daysElapsed;
-                 const newStock = Math.max(0, currentStock - totalDeduction);
-                 
-                 updates.push({
-                     id: m.id,
-                     // Guardamos con 2 decimales para precisión, pero como número para la DB
-                     stock: Number(newStock.toFixed(2)), 
-                     stock_updated_at: now.toISOString()
-                 });
-             }
-          }
-      }
-
-      if (updates.length > 0) {
-          for (const update of updates) {
-              // Intentar actualizar con timestamp
-              const { error } = await supabase.from('resident_medications')
-                  .update({ stock: update.stock, stock_updated_at: update.stock_updated_at })
-                  .eq('id', update.id);
-              
-              if (error) {
-                  // Fallback: Si falla (ej: no existe columna stock_updated_at), actualizar solo stock
-                  await supabase.from('resident_medications')
-                      .update({ stock: update.stock })
-                      .eq('id', update.id);
-              }
-          }
-          return true;
-      }
-      return false; 
-  };
-
-  // Función centralizada para cargar datos
+  // --- FETCH DATA ---
   const fetchData = useCallback(async () => {
       setLoadingData(true);
       try {
-        // 1. Fetch Settings
+        // Settings
         const { data: settingsData } = await supabase.from('app_settings').select('value').eq('key', 'low_stock_threshold').single();
-        if (settingsData && settingsData.value) {
-            setLowStockThreshold(parseInt(settingsData.value, 10));
-        }
+        if (settingsData) setLowStockThreshold(parseInt(settingsData.value, 10));
 
-        // 2. Fetch Residents
-        let currentResidents: Resident[] = [];
-        const { data: residentsData, error: resError } = await supabase.from('residents').select('*').order('display_order', { ascending: true });
-        
+        // Residents
+        const { data: residentsData } = await supabase.from('residents').select('*').order('display_order', { ascending: true });
         if (residentsData) {
-          currentResidents = residentsData.map((r: any) => ({
-             id: r.id,
-             name: r.name,
-             rut: r.rut,
-             dateOfBirth: r.date_of_birth,
-             displayOrder: r.display_order
-          }));
-          setResidents(currentResidents);
-        } else if (resError) {
-             const { data: retryData } = await supabase.from('residents').select('*');
-             if (retryData) {
-                currentResidents = retryData.map((r: any) => ({
-                    id: r.id,
-                    name: r.name,
-                    rut: r.rut,
-                    dateOfBirth: r.date_of_birth,
-                    displayOrder: r.display_order
-                })).sort((a, b) => (a.displayOrder || 0) - (b.displayOrder || 0));
-                setResidents(currentResidents);
-             } else {
-                 if (residents.length === 0) {
-                     currentResidents = MOCK_RESIDENTS;
-                     setResidents(MOCK_RESIDENTS);
-                 }
-             }
+          setResidents(residentsData.map((r: any) => ({
+             id: r.id, name: r.name, rut: r.rut, dateOfBirth: r.date_of_birth, displayOrder: r.display_order
+          })));
         }
 
-        // 3. Fetch Medications
-        const { data: medsDataRaw, error: medsError } = await supabase.from('resident_medications').select('*');
-
+        // Resident Medications
+        const { data: medsDataRaw } = await supabase.from('resident_medications').select('*');
         if (medsDataRaw) {
-            try { await processStockCatchUp(medsDataRaw); } catch (err) { }
-
             const mappedMeds = medsDataRaw.map((m: any) => {
                 let schedules = m.schedules;
                 if (typeof schedules === 'string') {
                     try { schedules = JSON.parse(schedules); } catch(e) { schedules = []; }
                 }
-
                 return {
-                    id: m.id,
-                    resident_id: m.resident_id,
-                    residentId: m.resident_id,
-                    medicationName: m.medication_name,
-                    doseValue: m.dose_value,
-                    doseUnit: m.dose_unit,
-                    schedules: Array.isArray(schedules) ? schedules : [],
-                    stock: m.stock,
-                    stockUnit: m.stock_unit,
-                    provenance: m.provenance,
-                    acquisitionDate: m.fecha_de_adquisicion, 
-                    acquisitionQuantity: m.cantidad_de_adquisicion, 
-                    deliveryDate: m.delivery_date,
-                    stockUpdatedAt: m.stock_updated_at,
-                    displayOrder: m.orden_personalizado || 0
+                    id: m.id, residentId: m.resident_id, medicationName: m.medication_name,
+                    doseValue: m.dose_value, doseUnit: m.dose_unit, schedules: Array.isArray(schedules) ? schedules : [],
+                    stock: m.stock, stockUnit: m.stock_unit, provenance: m.provenance,
+                    acquisitionDate: m.fecha_de_adquisicion, acquisitionQuantity: m.cantidad_de_adquisicion, 
+                    deliveryDate: m.delivery_date, stockUpdatedAt: m.stock_updated_at, displayOrder: m.orden_personalizado || 0
                 };
             });
             mappedMeds.sort((a: any, b: any) => (a.displayOrder || 0) - (b.displayOrder || 0));
             setResidentMedications(mappedMeds);
-        } else if (medsError) {
-             console.error("Error fetching medications", medsError.message);
-             if (residentMedications.length === 0) setResidentMedications([]);
         }
 
-        // 4. FETCH GENERAL KIT (NEW TABLE)
-        const { data: generalKitData, error: kitError } = await supabase
-            .from('farmacia_general_stock')
-            .select('*')
-            .order('display_order', { ascending: true }); 
-
+        // General Kit (Botiquín) - Removed order by display_order as column does not exist
+        const { data: generalKitData } = await supabase.from('farmacia_general_stock').select('*').order('nombre_medicamento', { ascending: true });
         if (generalKitData) {
             setGeneralKitItems(generalKitData);
-        } else if (kitError) {
-             if (kitError.code === '42703') { 
-                 const { data: retryData } = await supabase.from('farmacia_general_stock').select('*').order('nombre_medicamento');
-                 if (retryData) setGeneralKitItems(retryData);
-             } else if (kitError.code === '42P01' || kitError.message.includes('schema cache')) {
-                 console.warn("Table 'farmacia_general_stock' not found.");
-             } else {
-                 console.error("Error fetching general kit", kitError.message);
-             }
         }
 
-        // 5. FETCH REPORTS (MERGED LOGIC: SQL + STORAGE)
+        // Reports
         const { data: sqlReportsData } = await supabase.from('medical_reports').select('*');
-        let combinedReports: MedicalReport[] = [];
-
         if (sqlReportsData) {
-            combinedReports = sqlReportsData.map((r: any) => ({
-                id: r.id,
-                residentId: r.resident_id,
-                fileName: r.file_name,
-                fileData: r.file_data,
-                uploadDate: r.upload_date
-            }));
+            setMedicalReports(sqlReportsData.map((r: any) => ({
+                id: r.id, residentId: r.resident_id, fileName: r.file_name, fileData: r.file_data, uploadDate: r.upload_date
+            })));
         }
-
-        // B) Cargar desde Storage directamente
-        if (currentResidents.length > 0) {
-            const storagePromises = currentResidents.map(async (res) => {
-                const folderName = `resident_${res.id}`;
-                const { data: files } = await supabase.storage.from('documentos').list(folderName);
-                
-                if (!files || files.length === 0) return [];
-
-                return files.map(file => {
-                    if (file.name === '.emptyFolderPlaceholder') return null;
-
-                    const { data: { publicUrl } } = supabase.storage
-                        .from('documentos')
-                        .getPublicUrl(`${folderName}/${file.name}`);
-
-                    const existsInSql = combinedReports.some(sqlR => 
-                        (sqlR.residentId === res.id) && 
-                        (sqlR.fileData.includes(file.name) || sqlR.fileName === file.name)
-                    );
-
-                    if (existsInSql) return null;
-
-                    return {
-                        id: `storage-${file.id}`,
-                        residentId: res.id,
-                        fileName: file.name,
-                        fileData: publicUrl,
-                        uploadDate: file.created_at || new Date().toISOString()
-                    } as MedicalReport;
-                });
-            });
-
-            const storageResults = await Promise.all(storagePromises);
-            const validStorageReports = storageResults.flat().filter(r => r !== null) as MedicalReport[];
-            combinedReports = [...combinedReports, ...validStorageReports];
-        }
-        
-        combinedReports.sort((a, b) => new Date(b.uploadDate).getTime() - new Date(a.uploadDate).getTime());
-
-        setMedicalReports(combinedReports);
 
       } catch (error: any) {
-        console.error("Error loading data from Supabase", error.message || error);
+        console.error("Error loading data from Supabase:", error.message || error);
       } finally {
         setLoadingData(false);
       }
-  }, [residents.length, residentMedications.length]); 
+  }, []); 
   
   useEffect(() => {
     fetchData();
-  }, []); 
+  }, [fetchData]); 
 
-  // --- MANUAL FORCE UPDATE FUNCTION (DECIMAL SUPPORT ENABLED) ---
-  const handleForceDailyUpdate = useCallback(async () => {
-    if (!window.confirm("¿Confirmar descuento de stock diario a todos los medicamentos activos?")) return;
-    
-    setLoadingData(true);
-    let processedCount = 0;
-    let errorCount = 0;
-    let zeroConsumptionCount = 0;
-
-    try {
-        const { data: allMeds, error: fetchError } = await supabase.from('resident_medications').select('*');
-        
-        if (fetchError || !allMeds) {
-            throw new Error(fetchError?.message || "No se pudieron cargar los datos.");
-        }
-
-        for (const m of allMeds) {
-             let schedules = m.schedules;
-             if (typeof schedules === 'string') {
-                 try { schedules = JSON.parse(schedules); } catch(e) { schedules = []; }
-             }
-             if (!Array.isArray(schedules)) schedules = [];
-
-             const dailyExpense = schedules.reduce((sum: number, s: any) => {
-                 let qString = String(s.quantity).replace(',', '.'); 
-                 const q = parseFloat(qString); 
-                 return sum + (isNaN(q) ? 0 : q);
-             }, 0);
-
-             if (dailyExpense > 0) {
-                 const currentStock = parseFloat(m.stock) || 0;
-                 const newStock = Number(Math.max(0, currentStock - dailyExpense).toFixed(2));
-                 
-                 const { error: updateError } = await supabase.from('resident_medications')
-                    .update({ stock: newStock })
-                    .eq('id', m.id);
-                 
-                 if (updateError) {
-                     console.error(`Error actualizando ID ${m.id}:`, updateError.message);
-                     errorCount++;
-                 } else {
-                     processedCount++;
-                 }
-             } else {
-                 zeroConsumptionCount++;
-             }
-        }
-        
-        let message = `STOCK ACTUALIZADO EXITOSAMENTE\n\n` +
-                      `✅ Medicamentos procesados: ${processedCount}\n` +
-                      `⚠️ Sin consumo configurado: ${zeroConsumptionCount}`;
-        
-        if (errorCount > 0) {
-            message += `\n❌ Errores de escritura: ${errorCount}`;
-        } else {
-            message += `\n\nEl inventario ha sido descontado correctamente.`;
-        }
-
-        alert(message);
-        fetchData(); 
-    } catch (e: any) {
-        console.error("Error crítico:", e);
-        alert("Error del sistema: " + e.message);
-    } finally {
-        setLoadingData(false);
-    }
-  }, [fetchData]);
-
-
-  const handleUpdateThreshold = async (newThreshold: number) => {
-    setLowStockThreshold(newThreshold);
-    try {
-        await supabase.from('app_settings').upsert({ key: 'low_stock_threshold', value: String(newThreshold) });
-    } catch(e) {
-        console.error("Error saving setting", e);
-    }
-  };
-
-  // --- RESTORE DATA FUNCTIONALITY ---
-  const handleRestoreData = useCallback(async () => {
-    if (!window.confirm("¿Estás seguro de que deseas restaurar los datos iniciales? Se recuperarán los residentes y medicamentos predeterminados.")) return;
-
-    setLoadingData(true);
-    try {
-        const residentsPayload = MOCK_RESIDENTS.map(r => ({
-            id: r.id,
-            name: r.name,
-            rut: r.rut,
-            date_of_birth: r.dateOfBirth,
-            display_order: r.id 
-        }));
-        
-        const { error: resError } = await supabase.from('residents').upsert(residentsPayload);
-        if (resError) throw resError;
-
-        const medsPayload = MOCK_RESIDENT_MEDICATIONS.map((m, index) => ({
-            id: m.id,
-            resident_id: m.residentId,
-            medication_name: m.medicationName,
-            dose_value: m.doseValue,
-            dose_unit: m.doseUnit,
-            schedules: m.schedules,
-            stock: m.stock,
-            stock_unit: m.stockUnit,
-            provenance: m.provenance,
-            delivery_date: m.deliveryDate,
-        }));
-
-        const { error: medError } = await supabase.from('resident_medications').upsert(medsPayload);
-        if (medError) throw medError;
-
-        alert("Restauración completada correctamente.");
-        fetchData();
-
-    } catch (e: any) {
-        console.error("Error restoring data:", e);
-        alert("Ocurrió un error durante la restauración: " + (e.message || e));
-    } finally {
-        setLoadingData(false);
-    }
-  }, [fetchData]);
-
-
-  const handleSelectResident = (resident: Resident) => { setSelectedResident(resident); setActivePanel(Panel.ResidentMedications); };
-  const handleBackToResidents = () => { setSelectedResident(null); setActivePanel(Panel.Residents); };
-
-  // --- Residents CRUD ---
-  const handleSaveResident = useCallback(async (residentData: Omit<Resident, 'id'> | Resident) => {
-    try {
-        let residentToSave: Resident;
-        const isNew = !('id' in residentData);
-
-        if (isNew) {
-             const maxOrder = residents.length > 0 ? Math.max(...residents.map(r => r.displayOrder || 0)) : 0;
-             residentToSave = { ...residentData, id: Date.now(), displayOrder: maxOrder + 1 }; 
-        } else {
-            residentToSave = residentData as Resident;
-        }
-
-        setResidents(prev => {
-            if (isNew) {
-                return [...prev, residentToSave];
-            } else {
-                return prev.map(r => r.id === residentToSave.id ? residentToSave : r);
-            }
-        });
-
-        const basePayload = {
-            id: residentToSave.id,
-            name: residentToSave.name,
-            rut: residentToSave.rut,
-            date_of_birth: residentToSave.dateOfBirth,
-        };
-
-        const { error } = await supabase.from('residents').upsert({
-            ...basePayload,
-            display_order: residentToSave.displayOrder ?? 0
-        });
-
-        if (error) {
-             const { error: retryError } = await supabase.from('residents').upsert(basePayload);
-             if (retryError) throw retryError;
-        }
-
-    } catch (e: any) {
-        console.error("Error saving resident:", e.message || e);
-        alert("Error al guardar residente: " + (e.message || "Error desconocido"));
-    }
-  }, [residents]);
-
-  const handleDeleteResident = useCallback(async (residentId: number) => {
-    try {
-        const { error } = await supabase.from('residents').delete().eq('id', residentId);
-        if (error) throw error;
-
-        setResidents(prev => prev.filter(r => r.id !== residentId));
-        setResidentMedications(prev => prev.filter(m => m.residentId !== residentId));
-        setMedicalReports(prev => prev.filter(r => r.residentId !== residentId));
-    } catch (e: any) {
-        console.error("Error deleting resident:", e.message || e);
-        alert("Error al eliminar residente.");
-    }
-  }, []);
-
-  const handleReorderResidents = useCallback(async (reorderedResidents: Resident[]) => {
-      setResidents(reorderedResidents);
+  // --- GENERAL KIT ACTIONS (FIXED) ---
+  const handleImportGeneralKit = useCallback(async () => {
+      if (!window.confirm("¿Deseas cargar los 49 medicamentos de la lista del botiquín general? Esto reemplazará o actualizará los medicamentos existentes.")) return;
+      
+      setLoadingData(true);
       try {
-          const upsertPayload = reorderedResidents.map((r, index) => ({
-              id: r.id,
-              name: r.name,
-              rut: r.rut,
-              date_of_birth: r.dateOfBirth,
-              display_order: index
-          }));
-          const { error } = await supabase.from('residents').upsert(upsertPayload);
-          if (error) throw error;
-      } catch (e: any) {
-          console.warn("Error reordering residents:", e.message || e);
-      }
-  }, []);
-
-  // --- Medications CRUD ---
-  const handleSaveMedication = useCallback(async (medicationData: Omit<ResidentMedication, 'id' | 'residentId'> | ResidentMedication) => {
-    try {
-        let medToSave: ResidentMedication;
-        const nowISO = new Date().toISOString();
-        const stockUpdatedAt = (medicationData as any).stockUpdatedAt || nowISO;
-
-        if ('id' in medicationData) {
-            medToSave = { 
-                ...medicationData, 
-                stockUpdatedAt: stockUpdatedAt
-            } as ResidentMedication;
-        } else {
-            if (!selectedResident) return;
-            const currentResidentMeds = residentMedications.filter(m => m.residentId === selectedResident.id);
-            const maxOrder = currentResidentMeds.length > 0 
-                ? Math.max(...currentResidentMeds.map(m => m.displayOrder || 0)) 
-                : 0;
-
-            medToSave = { 
-                ...medicationData, 
-                id: `RMED${Date.now()}`, 
-                residentId: selectedResident.id,
-                stockUpdatedAt: stockUpdatedAt,
-                displayOrder: maxOrder + 1
-            };
-        }
-
-        const fullPayload = {
-            id: medToSave.id,
-            resident_id: medToSave.residentId,
-            medication_name: medToSave.medicationName,
-            dose_value: medToSave.doseValue,
-            dose_unit: medToSave.doseUnit,
-            schedules: medToSave.schedules,
-            stock: medToSave.stock,
-            stock_unit: medToSave.stockUnit,
-            provenance: medToSave.provenance,
-            delivery_date: medToSave.deliveryDate,
-            fecha_de_adquisicion: medToSave.acquisitionDate, 
-            cantidad_de_adquisicion: medToSave.acquisitionQuantity,
-            stock_updated_at: medToSave.stockUpdatedAt,
-            orden_personalizado: medToSave.displayOrder ?? 0
-        };
-
-        const { error } = await supabase.from('resident_medications').upsert(fullPayload);
-        
-        if (error) {
-            throw error; 
-        }
-
-        fetchData(); 
-
-    } catch (e: any) {
-        console.error("Error saving medication:", e.message || e);
-        alert("Error al guardar medicamento: " + (e.message || "Error desconocido"));
-    }
-  }, [selectedResident, residentMedications, fetchData]);
-
-  const handleDeleteMedication = useCallback(async (medicationId: string) => {
-    try {
-        const { error } = await supabase.from('resident_medications').delete().eq('id', medicationId);
-        if (error) throw error;
-        setResidentMedications(prev => prev.filter(m => m.id !== medicationId));
-    } catch (e: any) {
-        console.error("Error deleting medication:", e.message || e);
-        alert("Error al eliminar medicamento.");
-    }
-  }, []);
-
-  const handleReorderMedications = useCallback(async (reorderedMeds: ResidentMedication[]) => {
-      setResidentMedications(prev => {
-          const residentId = reorderedMeds[0]?.residentId;
-          if (!residentId) return prev;
-          const otherMeds = prev.filter(m => m.residentId !== residentId);
-          const updatedMeds = reorderedMeds.map((m, idx) => ({ ...m, displayOrder: idx }));
-          return [...otherMeds, ...updatedMeds];
-      });
-
-      try {
-          const upsertPayload = reorderedMeds.map((m, index) => ({
-              id: m.id,
-              resident_id: m.residentId,
-              medication_name: m.medicationName,
-              dose_value: m.doseValue,
-              dose_unit: m.doseUnit,
-              schedules: m.schedules,
-              stock: m.stock, 
-              stock_unit: m.stockUnit,
-              provenance: m.provenance,
-              delivery_date: m.deliveryDate,
-              fecha_de_adquisicion: m.acquisitionDate,
-              cantidad_de_adquisicion: m.acquisitionQuantity,
-              orden_personalizado: index
+          // Prepare payload with explicit fields mapping to the table columns
+          // REMOVED display_order
+          const payload = INITIAL_GENERAL_KIT_DATA.map((item, index) => ({
+              nombre_medicamento: item.nombre_medicamento,
+              formato: item.formato,
+              cantidad_total: parseFloat(String(item.cantidad_total)),
+              procedencia: item.procedencia || 'Inventario Inicial',
+              fecha_adquisicion: new Date().toISOString()
           }));
 
-          const { error } = await supabase.from('resident_medications').upsert(upsertPayload);
+          // Direct insert/upsert to the table
+          const { error: insError } = await supabase.from('farmacia_general_stock').upsert(payload, { onConflict: 'nombre_medicamento,formato' });
+          if (insError) throw insError;
           
-          if (error) {
-              console.error("Error reordering medications:", error.message);
-          }
-
+          alert("✅ ¡Éxito! Se han incorporado los 49 medicamentos al Botiquín General.");
+          await fetchData();
       } catch (e: any) {
-           console.error("Unexpected error reordering medications:", e);
+          console.error("Error al importar lista del botiquín:", e);
+          alert("❌ Error al importar: " + (e.message || "No se pudo conectar con la base de datos."));
+      } finally {
+          setLoadingData(false);
       }
-  }, []);
+  }, [fetchData]);
 
-  // --- General Kit CRUD ---
   const handleSaveGeneralItem = useCallback(async (item: Omit<GeneralMedication, 'id'> | GeneralMedication) => {
+    setLoadingData(true);
     try {
-        let dbPayload: any = {
-            nombre_medicamento: item.nombre_medicamento,
-            formato: item.formato,
-            cantidad_total: item.cantidad_total,
-            procedencia: item.procedencia,
-            fecha_adquisicion: item.fecha_adquisicion
+        const dbPayload: any = { 
+            nombre_medicamento: item.nombre_medicamento, 
+            formato: item.formato, 
+            cantidad_total: parseFloat(String(item.cantidad_total)), 
+            procedencia: item.procedencia, 
+            fecha_adquisicion: item.fecha_adquisicion || new Date().toISOString()
         };
-
-        if ('id' in item) {
-            dbPayload.id = item.id;
-            const { error } = await supabase.from('farmacia_general_stock').update(dbPayload).eq('id', item.id);
-            if (error) throw error;
+        
+        let error;
+        if ('id' in item && item.id) {
+            const { error: updateError } = await supabase.from('farmacia_general_stock').update(dbPayload).eq('id', item.id);
+            error = updateError;
         } else {
-            const maxOrder = generalKitItems.length > 0 ? Math.max(...generalKitItems.map(i => i.display_order || 0)) : 0;
-            dbPayload.display_order = maxOrder + 1;
-            const { error } = await supabase.from('farmacia_general_stock').insert(dbPayload);
-            if (error) throw error;
+            // REMOVED display_order logic
+            const { error: insertError } = await supabase.from('farmacia_general_stock').insert([dbPayload]);
+            error = insertError;
         }
-
-        fetchData();
+        
+        if (error) throw error;
+        
+        alert("✅ Ítem guardado con éxito.");
+        await fetchData();
     } catch (e: any) {
-        console.error("Error saving general item:", e.message || e);
-        if (e.message?.includes('farmacia_general_stock') || e.message?.includes('schema cache') || e.code === '42P01') {
-            alert("⚠️ ERROR DE CONFIGURACIÓN:\n\nLa tabla 'farmacia_general_stock' no existe en la base de datos.");
-        } else {
-            alert("Error al guardar ítem en botiquín general: " + (e.message || "Error desconocido"));
-        }
+        console.error("Error al guardar ítem en botiquín:", e);
+        alert("❌ Error al guardar: " + (e.message || "Verifique los datos e intente nuevamente."));
+    } finally {
+        setLoadingData(false);
     }
   }, [fetchData, generalKitItems]);
 
   const handleDeleteGeneralItem = useCallback(async (itemId: number) => {
-    try {
-        const { error } = await supabase.from('farmacia_general_stock').delete().eq('id', itemId);
-        if (error) throw error;
-        setGeneralKitItems(prev => prev.filter(i => i.id !== itemId));
-    } catch (e: any) {
-         console.error("Error deleting general item:", e.message || e);
-         alert("Error al eliminar ítem.");
-    }
-  }, []);
+      // Confirmation handled by Modal component
+      setLoadingData(true);
+      try {
+          const { error } = await supabase.from('farmacia_general_stock').delete().eq('id', itemId);
+          if (error) throw error;
+          await fetchData();
+      } catch (e: any) { 
+          alert("❌ Error al eliminar ítem: " + e.message); 
+      } finally {
+          setLoadingData(false);
+      }
+  }, [fetchData]);
 
   const handleReorderGeneralItems = useCallback(async (reorderedItems: GeneralMedication[]) => {
       setGeneralKitItems(reorderedItems);
-      try {
-          const upsertPayload = reorderedItems.map((item, index) => ({
-              id: item.id,
-              nombre_medicamento: item.nombre_medicamento,
-              formato: item.formato,
-              cantidad_total: item.cantidad_total,
-              procedencia: item.procedencia,
-              fecha_adquisicion: item.fecha_adquisicion,
-              display_order: index
-          }));
-          
-          const { error } = await supabase.from('farmacia_general_stock').upsert(upsertPayload);
-          if(error) throw error;
-      } catch (e: any) {
-          console.error("Error reordering general items:", e.message || e);
-      }
+      // Removed display_order update because the column does not exist
   }, []);
 
-  // --- Reports CRUD ---
-  const handleSaveReport = useCallback(async (report: MedicalReport) => {
+  // --- RESIDENTS & MEDS ACTIONS ---
+  const handleSelectResident = (resident: Resident) => { setSelectedResident(resident); setActivePanel(Panel.ResidentMedications); };
+  const handleBackToResidents = () => { setSelectedResident(null); setActivePanel(Panel.Residents); };
+  
+  const handleForceDailyUpdate = useCallback(async () => {
+    if (!window.confirm("¿Confirmar descuento de stock diario a todos los medicamentos activos ahora?")) return;
+    setLoadingData(true);
     try {
-        const dbPayload = {
-            id: report.id,
-            resident_id: report.residentId,
-            file_name: report.fileName,
-            file_data: report.fileData,
-            upload_date: report.uploadDate
-        };
-        const { error } = await supabase.from('medical_reports').insert(dbPayload);
-        if (error) throw error;
-        setMedicalReports(prev => [report, ...prev]);
-    } catch (e: any) {
-        console.error("Error saving report:", e.message || e);
-        alert("Error al subir informe.");
-    }
-  }, []);
+        const { data: allMeds, error: fetchError } = await supabase.from('resident_medications').select('*');
+        if (fetchError || !allMeds) throw fetchError;
 
-  const handleDeleteReport = useCallback(async (reportId: string) => {
-    try {
-        const { error } = await supabase.from('medical_reports').delete().eq('id', reportId);
-        if (error) throw error;
-        setMedicalReports(prev => prev.filter(r => r.id !== reportId));
-    } catch (e: any) {
-        console.error("Error deleting report:", e.message || e);
-        alert("Error al eliminar informe.");
-    }
-  }, []);
+        for (const m of allMeds) {
+             let schedules = m.schedules;
+             if (typeof schedules === 'string') try { schedules = JSON.parse(schedules); } catch(e) { schedules = []; }
+             if (!Array.isArray(schedules)) schedules = [];
 
-  // --- Users CRUD ---
-  const handleSaveUser = useCallback(async (userData: Omit<ManagedUser, 'id'> | ManagedUser) => {
-    try {
-        let userToSave: ManagedUser;
-        const isNew = !('id' in userData);
-        if (!isNew) {
-            userToSave = userData as ManagedUser;
-        } else {
-            const maxOrder = users.length > 0 ? Math.max(...users.map(u => u.displayOrder || 0)) : 0;
-            userToSave = { ...userData, id: `user-${Date.now()}`, displayOrder: maxOrder + 1 };
+             const dailyExpense = schedules.reduce((sum, s) => sum + (parseFloat(String(s.quantity).replace(',', '.')) || 0), 0);
+
+             if (dailyExpense > 0) {
+                 const currentStock = parseFloat(m.stock) || 0;
+                 const newStock = Number(Math.max(0, currentStock - dailyExpense).toFixed(2));
+                 await supabase.from('resident_medications').update({ stock: newStock }).eq('id', m.id);
+             }
         }
-        setUsers(prevUsers => {
-            if (isNew) return [...prevUsers, userToSave];
-            return prevUsers.map(u => u.id === userToSave.id ? userToSave : u);
-        });
-        const basePayload = {
-            id: userToSave.id,
-            role: userToSave.role,
-            name: userToSave.name,
-            password: userToSave.password,
-            permissions: userToSave.permissions,
-        };
-        const { error } = await supabase.from('app_users').upsert({
-            ...basePayload,
-            display_order: userToSave.displayOrder ?? 0
-        });
-        if (error) {
-            const { error: retryError } = await supabase.from('app_users').upsert(basePayload);
-            if (retryError) throw retryError;
-        }
-    } catch (e: any) {
-        console.error("Error saving user:", e.message || e);
-        alert("Error al guardar usuario.");
-    }
-  }, [users, setUsers]);
+        alert("✅ Stock actualizado forzosamente.");
+        await fetchData(); 
+    } catch (e: any) { alert("Error: " + e.message); } finally { setLoadingData(false); }
+  }, [fetchData]);
 
-  const handleDeleteUser = useCallback(async (userId: string) => {
-    try {
-        setUsers(prev => prev.filter(u => u.id !== userId));
-        const { error } = await supabase.from('app_users').delete().eq('id', userId);
-        if (error) throw error;
-    } catch (e: any) {
-        console.error("Error deleting user:", e.message || e);
-        alert("Error al eliminar usuario.");
-        await onUsersMutated();
-    }
-  }, [setUsers, onUsersMutated]);
-
-  const handleReorderUsers = useCallback(async (reorderedUsers: ManagedUser[]) => {
-      setUsers(reorderedUsers);
+  const handleUpdateThreshold = useCallback(async (n: number) => { 
+      setLowStockThreshold(n); 
       try {
-          const upsertPayload = reorderedUsers.map((u, index) => ({
-              id: u.id,
-              role: u.role,
-              name: u.name,
-              password: u.password,
-              permissions: u.permissions,
-              display_order: index
-          }));
-          const { error } = await supabase.from('app_users').upsert(upsertPayload);
-          if (error) throw error;
-      } catch (e: any) {
-          console.warn("Error reordering users:", e.message || e);
-      }
-  }, [setUsers]);
+          await supabase.from('app_settings').upsert({ key: 'low_stock_threshold', value: String(n) });
+      } catch (e) {}
+  }, []);
+  
+  const handleSaveResident = useCallback(async (data: any) => { 
+    setLoadingData(true);
+    try {
+        const { error } = await supabase.from('residents').upsert({
+            id: data.id || Date.now(),
+            name: data.name,
+            rut: data.rut,
+            date_of_birth: data.dateOfBirth,
+            display_order: data.displayOrder || 0
+        } as any);
+        if (error) throw error;
+        await fetchData(); 
+    } catch (e: any) { alert("Error: " + e.message); } finally { setLoadingData(false); }
+  }, [fetchData]);
 
-  const handleLogoutClick = () => { setIsLogoutModalOpen(true); };
-  const handleConfirmLogout = () => { setIsLogoutModalOpen(false); onLogout(); };
+  const handleDeleteResident = useCallback(async (id: number) => { 
+    // Confirmation handled by Modal component
+    setLoadingData(true);
+    try {
+        await supabase.from('residents').delete().eq('id', id);
+        await fetchData(); 
+    } catch (e: any) { alert("Error: " + e.message); } finally { setLoadingData(false); }
+  }, [fetchData]);
+
+  const handleSaveMedication = useCallback(async (data: any) => { 
+    setLoadingData(true);
+    try {
+        const { error } = await supabase.from('resident_medications').upsert({
+            id: data.id || `RMED${Date.now()}`,
+            resident_id: data.residentId,
+            medication_name: data.medicationName,
+            dose_value: data.doseValue,
+            dose_unit: data.doseUnit,
+            schedules: data.schedules,
+            stock: data.stock,
+            stock_unit: data.stockUnit,
+            provenance: data.provenance,
+            fecha_de_adquisicion: data.acquisitionDate,
+            cantidad_de_adquisicion: data.acquisitionQuantity,
+            delivery_date: data.deliveryDate,
+            stock_updated_at: data.stockUpdatedAt || new Date().toISOString(),
+            orden_personalizado: data.displayOrder || 0
+        } as any);
+        if (error) throw error;
+        await fetchData(); 
+    } catch (e: any) { alert("Error: " + e.message); } finally { setLoadingData(false); }
+  }, [fetchData]);
+
+  const handleDeleteMedication = useCallback(async (id: string) => { 
+    // Confirmation handled by Modal component
+    setLoadingData(true);
+    try {
+        await supabase.from('resident_medications').delete().eq('id', id);
+        await fetchData(); 
+    } catch (e: any) { alert("Error: " + e.message); } finally { setLoadingData(false); }
+  }, [fetchData]);
+
+  const handleSaveReport = useCallback(async (rep: any) => { 
+    try {
+        const { error } = await supabase.from('medical_reports').insert({
+            id: rep.id, resident_id: rep.residentId, file_name: rep.fileName, file_data: rep.fileData, upload_date: rep.uploadDate
+        } as any);
+        if (error) throw error;
+        await fetchData(); 
+    } catch (e) { alert("Error al subir informe."); }
+  }, [fetchData]);
+
+  const handleDeleteReport = useCallback(async (id: string) => { 
+    if (!window.confirm("¿Eliminar informe?")) return;
+    try {
+        const { error } = await supabase.from('medical_reports').delete().eq('id', id);
+        if (error) throw error;
+        await fetchData(); 
+    } catch (e) { alert("Error al eliminar informe."); }
+  }, [fetchData]);
+
+  const handleRestoreData = useCallback(async () => {
+    if (!window.confirm("¿Restaurar datos predeterminados de residentes?")) return;
+    setLoadingData(true);
+    try {
+        const payload = MOCK_RESIDENTS.map(r => ({ id: r.id, name: r.name, rut: r.rut, date_of_birth: r.dateOfBirth, display_order: r.id }));
+        const { error } = await supabase.from('residents').upsert(payload as any);
+        if (error) throw error;
+        await fetchData();
+        alert("Restauración completa.");
+    } catch (e: any) { alert("Error: " + e.message); } finally { setLoadingData(false); }
+  }, [fetchData]);
 
   const renderPanel = () => {
-    if (loadingData && activePanel !== Panel.AdminApp && residentMedications.length === 0) {
-         return (
-             <div className="flex h-full items-center justify-center">
-                 <div className="flex flex-col items-center">
-                    <div className="w-8 h-8 border-4 border-brand-primary border-t-transparent rounded-full animate-spin mb-2"></div>
-                    <p className="text-slate-400">Cargando datos...</p>
-                 </div>
-             </div>
-         )
+    if (loadingData && activePanel !== Panel.AdminApp && residents.length === 0) {
+         return <div className="flex h-full items-center justify-center"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-primary"></div></div>;
     }
 
     if (activePanel === Panel.ResidentMedications && selectedResident) {
-      const residentMeds = residentMedications
-        .filter(m => m.residentId === selectedResident.id)
-        .sort((a, b) => (a.displayOrder || 0) - (b.displayOrder || 0));
-
-      return (
-        <ResidentMedicationsPanel
-          user={user}
-          resident={selectedResident}
-          onBack={handleBackToResidents}
-          medications={residentMeds}
-          onSaveMedication={handleSaveMedication}
-          onDeleteMedication={handleDeleteMedication}
-          onReorderMedications={handleReorderMedications} 
-          medicalReports={medicalReports.filter(r => r.residentId === selectedResident.id)}
-          onSaveReport={handleSaveReport}
-          onDeleteReport={handleDeleteReport}
-          lowStockThreshold={lowStockThreshold}
-        />
-      );
+      const residentMeds = residentMedications.filter(m => m.residentId === selectedResident.id);
+      return <ResidentMedicationsPanel user={user} resident={selectedResident} onBack={handleBackToResidents} medications={residentMeds} onSaveMedication={handleSaveMedication} onDeleteMedication={handleDeleteMedication} onReorderMedications={()=>{}} medicalReports={medicalReports.filter(r => r.residentId === selectedResident.id)} onSaveReport={handleSaveReport} onDeleteReport={handleDeleteReport} lowStockThreshold={lowStockThreshold} />;
     }
 
     switch (activePanel) {
-      case Panel.Dashboard:
-        return (
-          <DashboardModern 
-            user={user} 
-            residents={residents} 
-            residentMedications={residentMedications} 
-            onNavigate={setActivePanel}
-            lowStockThreshold={lowStockThreshold}
-            onUpdateThreshold={handleUpdateThreshold}
-            onForceDailyUpdate={handleForceDailyUpdate}
-          />
-        );
-      case Panel.Residents:
-        return <ResidentsPanel user={user} onSelectResident={handleSelectResident} residents={residents} onSaveResident={handleSaveResident} onDeleteResident={handleDeleteResident} onReorderResidents={handleReorderResidents} />;
-      case Panel.Medications: return <MedicationsPanel />;
-      case Panel.GeneralKit:
-        return (
-            <GeneralKitPanel 
-                user={user}
-                items={generalKitItems}
-                onSaveItem={handleSaveGeneralItem}
-                onDeleteItem={handleDeleteGeneralItem}
-                onReorderItems={handleReorderGeneralItems}
-            />
-        );
-      case Panel.GeneralInventory: 
-        return (
-          <GeneralInventoryPanel 
-            residentMedications={residentMedications} 
-            residents={residents} 
-            lowStockThreshold={lowStockThreshold}
-          />
-        );
-      case Panel.SummaryCesfam: 
-        return (
-          <SummaryCesfamPanel 
-            residents={residents} 
-            residentMedications={residentMedications}
-            lowStockThreshold={lowStockThreshold}
-          />
-        );
-      case Panel.SummaryIndividualStock: 
-        return <SummaryIndividualStockPanel 
-                  residents={residents} 
-                  residentMedications={residentMedications} 
-                  onSelectResident={handleSelectResident} 
-                  user={user}
-                  threshold={lowStockThreshold}
-               />;
-      case Panel.SummaryFamily: return <SummaryFamilyPanel />;
-      case Panel.AdminApp: 
-        return <AdminAppPanel 
-                  currentUser={user} 
-                  users={users} 
-                  onSaveUser={handleSaveUser} 
-                  onDeleteUser={handleDeleteUser}
-                  onReorderUsers={handleReorderUsers}
-                  onRestoreData={handleRestoreData}
-               />;
-      default: 
-        return (
-          <DashboardModern 
-            user={user} 
-            residents={residents} 
-            residentMedications={residentMedications} 
-            onNavigate={setActivePanel}
-            lowStockThreshold={lowStockThreshold}
-            onUpdateThreshold={handleUpdateThreshold}
-            onForceDailyUpdate={handleForceDailyUpdate}
-          />
-        );
+      case Panel.Dashboard: return <DashboardModern user={user} residents={residents} residentMedications={residentMedications} onNavigate={setActivePanel} lowStockThreshold={lowStockThreshold} onUpdateThreshold={handleUpdateThreshold} onForceDailyUpdate={handleForceDailyUpdate} />;
+      case Panel.Residents: return <ResidentsPanel user={user} onSelectResident={handleSelectResident} residents={residents} onSaveResident={handleSaveResident} onDeleteResident={handleDeleteResident} onReorderResidents={()=>{}} />;
+      case Panel.GeneralKit: return <GeneralKitPanel user={user} items={generalKitItems} onSaveItem={handleSaveGeneralItem} onDeleteItem={handleDeleteGeneralItem} onReorderItems={handleReorderGeneralItems} onImportList={handleImportGeneralKit} />;
+      case Panel.GeneralInventory: return <GeneralInventoryPanel residentMedications={residentMedications} residents={residents} lowStockThreshold={lowStockThreshold} />;
+      case Panel.SummaryCesfam: return <SummaryCesfamPanel residents={residents} residentMedications={residentMedications} lowStockThreshold={lowStockThreshold} />;
+      case Panel.SummaryIndividualStock: return <SummaryIndividualStockPanel residents={residents} residentMedications={residentMedications} onSelectResident={handleSelectResident} user={user} threshold={lowStockThreshold} />;
+      case Panel.AdminApp: return <AdminAppPanel currentUser={user} users={users} onSaveUser={async (u: any) => {
+        const { error } = await supabase.from('app_users').upsert({
+            id: u.id || `user-${Date.now()}`, role: u.role, name: u.name, password: u.password, permissions: u.permissions, display_order: u.displayOrder || 0
+        } as any);
+        if (error) throw error;
+        await onUsersMutated();
+        await fetchData();
+      }} onDeleteUser={async (id) => {
+          const { error } = await supabase.from('app_users').delete().eq('id', id);
+          if (error) throw error;
+          await onUsersMutated();
+          await fetchData();
+      }} onReorderUsers={async(list) => {
+          const payload = list.map((u, i) => ({ ...u, display_order: i }));
+          await supabase.from('app_users').upsert(payload as any);
+          await onUsersMutated();
+          await fetchData();
+      }} onRestoreData={handleRestoreData} onImportGeneralKit={handleImportGeneralKit} />;
+      default: return <DashboardModern user={user} residents={residents} residentMedications={residentMedications} onNavigate={setActivePanel} lowStockThreshold={lowStockThreshold} onUpdateThreshold={handleUpdateThreshold} onForceDailyUpdate={handleForceDailyUpdate} />;
     }
   };
 
   return (
-    <div className="relative min-h-screen md:flex bg-surface-ground font-sans text-slate-600 print:block print:bg-white print:overflow-visible print:h-auto">
-      <Sidebar user={user} activePanel={activePanel} setActivePanel={setActivePanel} onLogout={handleLogoutClick} availablePanels={availablePanels} isMobileOpen={isSidebarOpen} setIsMobileOpen={setIsSidebarOpen} />
-      
-      {/* FIXED: Removed restrictive md:w-auto, added min-w-0 for proper flex behavior */}
-      <div className="flex-1 flex flex-col w-full min-w-0 print:block print:w-full print:static">
-        
-        <header className="md:hidden bg-white shadow-sm flex justify-between items-center p-4 sticky top-0 z-10 border-b border-slate-200 print:hidden">
-            <button onClick={() => setIsSidebarOpen(true)} className="text-slate-600 hover:text-brand-primary"><MenuIcon className="w-6 h-6" /></button>
+    <div className="relative min-h-screen md:flex bg-surface-ground font-sans text-slate-600 print:block">
+      <Sidebar user={user} activePanel={activePanel} setActivePanel={setActivePanel} onLogout={onLogout} availablePanels={availablePanels} isMobileOpen={isSidebarOpen} setIsMobileOpen={setIsSidebarOpen} />
+      <div className="flex-1 flex flex-col w-full min-w-0">
+        <header className="md:hidden bg-white shadow-sm flex justify-between items-center p-4 sticky top-0 z-10 border-b border-slate-200">
+            <button onClick={() => setIsSidebarOpen(true)} className="text-slate-600"><MenuIcon className="w-6 h-6" /></button>
             <h1 className="text-lg font-bold text-slate-800">{activePanel}</h1>
             <div className="w-6"></div>
         </header>
-        
-        {/* Update: Reduced padding on mobile (p-3) to allow more space for the table */}
-        <main className="flex-1 p-3 md:p-10 w-full overflow-y-auto print:overflow-visible print:h-auto print:p-0 print:w-full print:static print:block">
+        <main className="flex-1 p-3 md:p-10 w-full overflow-y-auto">
           {renderPanel()}
         </main>
       </div>
-      
-      {isLogoutModalOpen && <ConfirmLogoutModal onConfirm={handleConfirmLogout} onCancel={() => setIsLogoutModalOpen(false)} />}
+      {isLogoutModalOpen && <ConfirmLogoutModal onConfirm={onLogout} onCancel={() => setIsLogoutModalOpen(false)} />}
     </div>
   );
 };

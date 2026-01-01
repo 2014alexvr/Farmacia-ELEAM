@@ -9,7 +9,7 @@ interface AddGeneralKitModalProps {
   itemToEdit?: GeneralMedication;
 }
 
-const DOSE_UNITS = ['Mcg', 'Mg', 'Gr', 'Ml', 'Mg/Ml', 'NPH', '%', ''];
+const DOSE_UNITS = ['Mcg', 'Mg', 'Gr', 'Ml', 'Mg/ml', 'NPH', '%', ''];
 const PROVENANCE_OPTIONS: Provenance[] = ['Cesfam', 'Salud Mental', 'Hospital', 'CAE Quilpué', 'CAE Viña', 'Familia', 'Compras', 'Donación'];
 
 const AddGeneralKitModal: React.FC<AddGeneralKitModalProps> = ({ onClose, onSave, itemToEdit }) => {
@@ -33,18 +33,19 @@ const AddGeneralKitModal: React.FC<AddGeneralKitModalProps> = ({ onClose, onSave
       const fmt = itemToEdit.formato || '';
       const parts = fmt.split(' ');
       
-      // Basic check if the last part is a unit
+      // Basic check if the last part is a unit (case-insensitive check)
       const possibleUnit = parts.length > 1 ? parts[parts.length - 1] : fmt;
+      const matchedUnit = DOSE_UNITS.find(u => u.toLowerCase() === possibleUnit.toLowerCase());
       
-      if (parts.length > 1 && DOSE_UNITS.includes(possibleUnit)) {
+      if (parts.length > 1 && matchedUnit !== undefined) {
           setDoseValue(parts.slice(0, -1).join(' ')); // Join rest as value
-          setDoseUnit(possibleUnit);
-      } else if (DOSE_UNITS.includes(fmt)) {
+          setDoseUnit(matchedUnit || possibleUnit);
+      } else if (matchedUnit !== undefined) {
           setDoseValue('');
-          setDoseUnit(fmt);
+          setDoseUnit(matchedUnit);
       } else {
-          setDoseValue('');
-          setDoseUnit(fmt || 'Mg');
+          setDoseValue(fmt);
+          setDoseUnit('');
       }
 
       setCantidadTotal(String(itemToEdit.cantidad_total));
@@ -55,17 +56,17 @@ const AddGeneralKitModal: React.FC<AddGeneralKitModalProps> = ({ onClose, onSave
     }
   }, [isEditing, itemToEdit]);
 
-  const isFormValid = nombreMedicamento.trim() !== '' && cantidadTotal.trim() !== '' && doseValue.trim() !== '';
+  const isFormValid = nombreMedicamento.trim() !== '' && cantidadTotal.trim() !== '' && (doseValue.trim() !== '' || doseUnit.trim() !== '');
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!isFormValid) return;
 
     // Combine value and unit for storage
-    const fullFormat = `${doseValue} ${doseUnit}`;
+    const fullFormat = doseUnit ? `${doseValue} ${doseUnit}`.trim() : doseValue.trim();
 
     const newItem = {
-      nombre_medicamento: nombreMedicamento,
+      nombre_medicamento: nombreMedicamento.trim(),
       formato: fullFormat,
       cantidad_total: parseFloat(cantidadTotal),
       procedencia: procedencia,
@@ -118,7 +119,7 @@ const AddGeneralKitModal: React.FC<AddGeneralKitModalProps> = ({ onClose, onSave
             
             {/* Nombre */}
             <div>
-                <label className={labelStyle}>Nombre del Medicamento / Insumo</label>
+                <label className={labelStyle}>Nombre del Medicamento / Insumo *</label>
                 <input 
                     type="text" 
                     value={nombreMedicamento} 
@@ -133,7 +134,7 @@ const AddGeneralKitModal: React.FC<AddGeneralKitModalProps> = ({ onClose, onSave
             <div className="grid grid-cols-2 gap-4">
                 {/* Dosis / Concentración (Nuevo Formato) */}
                 <div>
-                    <label className={labelStyle}>Dosis / Concentración</label>
+                    <label className={labelStyle}>Dosis / Concentración *</label>
                     <div className="flex shadow-sm rounded-2xl overflow-hidden">
                         <input 
                             type="text" 
@@ -155,7 +156,7 @@ const AddGeneralKitModal: React.FC<AddGeneralKitModalProps> = ({ onClose, onSave
 
                 {/* Cantidad Total */}
                 <div>
-                    <label className={labelStyle}>Cantidad Total</label>
+                    <label className={labelStyle}>Cantidad Total *</label>
                     <input 
                         type="number" 
                         step="any"
@@ -204,7 +205,7 @@ const AddGeneralKitModal: React.FC<AddGeneralKitModalProps> = ({ onClose, onSave
                     disabled={!isFormValid}
                     className="flex-1 py-3 bg-gradient-to-r from-brand-secondary to-brand-primary text-white font-bold rounded-2xl shadow-lg shadow-brand-primary/30 hover:shadow-brand-primary/50 hover:-translate-y-0.5 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                    Guardar
+                    {isEditing ? 'Guardar Cambios' : 'Crear Ítem'}
                 </button>
             </div>
         </form>

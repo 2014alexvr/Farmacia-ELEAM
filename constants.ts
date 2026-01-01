@@ -1,6 +1,4 @@
-
-
-import { Panel, UserRole, Resident, Medication, ResidentMedication, Provenance, PermissionLevel, ManagedUser } from './types';
+import { Panel, UserRole, Resident, Medication, ResidentMedication, Provenance, PermissionLevel, ManagedUser, GeneralMedication } from './types';
 
 export const ROLE_PERMISSIONS: Record<UserRole, PermissionLevel> = {
   [UserRole.Admin]: 'Total',
@@ -15,7 +13,6 @@ export const MOCK_USERS: ManagedUser[] = [
   { id: 'user-tens', role: UserRole.Tens, name: 'Tens', password: 'pau1122', permissions: 'Modificar' },
   { id: 'user-visitor', role: UserRole.Visitor, name: 'Visita', password: 'visita1122', permissions: 'Solo Lectura' },
 ];
-
 
 export const MOCK_RESIDENTS: Resident[] = [
   { id: 1, name: 'Jaime Eduardo Sanhueza Vivanco', rut: '5.854.672-0', dateOfBirth: '1946-12-10' },
@@ -37,26 +34,64 @@ export const MOCK_RESIDENTS: Resident[] = [
 ];
 
 export const MOCK_MEDICATIONS: Medication[] = [
-    { id: 'MED001', name: 'Losartán 50mg', stock: 500, unit: 'comprimidos', lastOrdered: '2024-06-20', lowStockThreshold: 100 },
-    { id: 'MED002', name: 'Aspirina 100mg', stock: 800, unit: 'comprimidos', lastOrdered: '2024-06-15', lowStockThreshold: 200 },
-    { id: 'MED003', name: 'Metformina 850mg', stock: 350, unit: 'comprimidos', lastOrdered: '2024-07-01', lowStockThreshold: 150 },
-    { id: 'MED004', name: 'Atorvastatina 20mg', stock: 60, unit: 'comprimidos', lastOrdered: '2024-05-28', lowStockThreshold: 100 },
-    { id: 'MED005', name: 'Omeprazol 20mg', stock: 1200, unit: 'comprimidos', lastOrdered: '2024-07-05', lowStockThreshold: 300 },
-    { id: 'MED006', name: 'Sertralina 50mg', stock: 250, unit: 'comprimidos', lastOrdered: '2024-06-18', lowStockThreshold: 100 },
-    { id: 'MED007', name: 'Paracetamol 500mg', stock: 90, unit: 'comprimidos', lastOrdered: '2024-07-02', lowStockThreshold: 100 },
-    { id: 'MED008', name: 'Insulina Glargina', stock: 20, unit: 'unidades', lastOrdered: '2024-07-10', lowStockThreshold: 15 },
+  { id: '1', name: 'Paracetamol', stock: 100, unit: 'comprimidos', lastOrdered: '2023-10-01', lowStockThreshold: 10 },
+  { id: '2', name: 'Ibuprofeno', stock: 5, unit: 'comprimidos', lastOrdered: '2023-10-05', lowStockThreshold: 10 },
 ];
 
-export const MOCK_RESIDENT_MEDICATIONS: ResidentMedication[] = [
-    // ... (Manteniendo los datos mock existentes sin cambios) ...
-    // 1. Jaime Eduardo Sanhueza Vivanco
-    { id: 'RMED101', residentId: 1, medicationName: 'Fenitoína', doseValue: '100', doseUnit: 'Mg', schedules: [{ time: '08:00', quantity: 1, unit: 'Comp' }], stock: 30, stockUnit: 'Comp', provenance: 'Cesfam', deliveryDate: '2025-12-02' },
-    { id: 'RMED102', residentId: 1, medicationName: 'Folifer', doseValue: '330', doseUnit: 'Mg', schedules: [{ time: '08:00', quantity: 1, unit: 'Comp' }], stock: 30, stockUnit: 'Comp', provenance: 'Compras' },
-    { id: 'RMED103', residentId: 1, medicationName: 'Tamsulosina/Dutasteride (Finaprost)', doseValue: '0.5/0.4', doseUnit: 'Mg', schedules: [{ time: '20:00', quantity: 1, unit: 'Comp' }], stock: 30, stockUnit: 'Comp', provenance: 'Compras' },
-    { id: 'RMED104', residentId: 1, medicationName: 'Quetiapina', doseValue: '100', doseUnit: 'Mg', schedules: [{ time: '20:00', quantity: 0.5, unit: 'Comp' }], stock: 30, stockUnit: 'Comp', provenance: 'Compras' },
-    // ... (El resto de mocks se mantienen igual)
-];
+export const MOCK_RESIDENT_MEDICATIONS: ResidentMedication[] = [];
 
+// LISTA DE MEDICAMENTOS EXTRAÍDA DE LA IMAGEN
+export const INITIAL_GENERAL_KIT_DATA: Omit<GeneralMedication, 'id'>[] = [
+  { nombre_medicamento: 'Paracetamol', formato: '500 mg', cantidad_total: 431, procedencia: 'Inventario Inicial' },
+  { nombre_medicamento: 'Trioval', formato: '564 mg', cantidad_total: 17, procedencia: 'Inventario Inicial' },
+  { nombre_medicamento: 'Enalapril', formato: '10 mg', cantidad_total: 144, procedencia: 'Inventario Inicial' },
+  { nombre_medicamento: 'Quetiapina', formato: '100 mg', cantidad_total: 38, procedencia: 'Inventario Inicial' },
+  { nombre_medicamento: 'Quetiapina', formato: '25 mg', cantidad_total: 57, procedencia: 'Inventario Inicial' },
+  { nombre_medicamento: 'Losartán', formato: '50 mg', cantidad_total: 200, procedencia: 'Inventario Inicial' },
+  { nombre_medicamento: 'Risperidona', formato: '1 mg', cantidad_total: 30, procedencia: 'Inventario Inicial' },
+  { nombre_medicamento: 'Sulfato Ferroso', formato: '200 mg', cantidad_total: 80, procedencia: 'Inventario Inicial' },
+  { nombre_medicamento: 'Espironolactona', formato: '25 mg', cantidad_total: 10, procedencia: 'Inventario Inicial' },
+  { nombre_medicamento: 'Melatonina', formato: '3 mg', cantidad_total: 30, procedencia: 'Inventario Inicial' },
+  { nombre_medicamento: 'Clorpromazina', formato: '100 mg', cantidad_total: 210, procedencia: 'Inventario Inicial' },
+  { nombre_medicamento: 'Desloratadina', formato: '5 mg', cantidad_total: 37, procedencia: 'Inventario Inicial' },
+  { nombre_medicamento: 'Levetiracetam', formato: '500 mg', cantidad_total: 30, procedencia: 'Inventario Inicial' },
+  { nombre_medicamento: 'Aspirina', formato: '100 mg', cantidad_total: 125, procedencia: 'Inventario Inicial' },
+  { nombre_medicamento: 'Fluoxetina', formato: '20 mg', cantidad_total: 80, procedencia: 'Inventario Inicial' },
+  { nombre_medicamento: 'Atorvastatina', formato: '20 mg', cantidad_total: 107, procedencia: 'Inventario Inicial' },
+  { nombre_medicamento: 'Carbamazepina', formato: '200 mg', cantidad_total: 49, procedencia: 'Inventario Inicial' },
+  { nombre_medicamento: 'Zopiclona', formato: '7,5 mg', cantidad_total: 15, procedencia: 'Inventario Inicial' },
+  { nombre_medicamento: 'Amlodipino', formato: '10 mg', cantidad_total: 10, procedencia: 'Inventario Inicial' },
+  { nombre_medicamento: 'Ciprofloxacino', formato: '500 mg', cantidad_total: 17, procedencia: 'Inventario Inicial' },
+  { nombre_medicamento: 'Eutirox', formato: '100 mg', cantidad_total: 100, procedencia: 'Inventario Inicial' },
+  { nombre_medicamento: 'Levotiroxina', formato: '50 mg', cantidad_total: 30, procedencia: 'Inventario Inicial' },
+  { nombre_medicamento: 'Metamizol', formato: '300 mg', cantidad_total: 11, procedencia: 'Inventario Inicial' },
+  { nombre_medicamento: 'Loratadina', formato: '10 mg', cantidad_total: 20, procedencia: 'Inventario Inicial' },
+  { nombre_medicamento: 'Domperidona', formato: '10 mg', cantidad_total: 16, procedencia: 'Inventario Inicial' },
+  { nombre_medicamento: 'Celecoxib', formato: '200 mg', cantidad_total: 10, procedencia: 'Inventario Inicial' },
+  { nombre_medicamento: 'Hidroclorotiazida', formato: '50 mg', cantidad_total: 34, procedencia: 'Inventario Inicial' },
+  { nombre_medicamento: 'Aciclovir', formato: '400 mg', cantidad_total: 33, procedencia: 'Inventario Inicial' },
+  { nombre_medicamento: 'Captopril', formato: '25 mg', cantidad_total: 30, procedencia: 'Inventario Inicial' },
+  { nombre_medicamento: 'Nitrofurantoína', formato: '100 mg', cantidad_total: 11, procedencia: 'Inventario Inicial' },
+  { nombre_medicamento: 'Amoxicilina/Ac. Clavulánico', formato: '875/125 mg', cantidad_total: 23, procedencia: 'Inventario Inicial' },
+  { nombre_medicamento: 'Eutirox', formato: '88 mg', cantidad_total: 21, procedencia: 'Inventario Inicial' },
+  { nombre_medicamento: 'Aciclovir Crema', formato: '5% Frasco', cantidad_total: 0.5, procedencia: 'Inventario Inicial' },
+  { nombre_medicamento: 'Tapsin Día', formato: 'Sobre mg', cantidad_total: 3, procedencia: 'Inventario Inicial' },
+  { nombre_medicamento: 'Tapsin Noche', formato: 'Sobre mg', cantidad_total: 2, procedencia: 'Inventario Inicial' },
+  { nombre_medicamento: 'Atenolol', formato: '50 mg', cantidad_total: 30, procedencia: 'Inventario Inicial' },
+  { nombre_medicamento: 'Pramipexol Diclohidrato', formato: '0,25 mg', cantidad_total: 90, procedencia: 'Inventario Inicial' },
+  { nombre_medicamento: 'Oftabiótico ungüento', formato: '3,5 Gr Frasco', cantidad_total: 0.25, procedencia: 'Inventario Inicial' },
+  { nombre_medicamento: 'Oftabiótico Gramicidina+Polimixina', formato: 'Frasco', cantidad_total: 0.5, procedencia: 'Inventario Inicial' },
+  { nombre_medicamento: 'Oftol Loteprednol + Tobramicina', formato: 'Frasco', cantidad_total: 0.5, procedencia: 'Inventario Inicial' },
+  { nombre_medicamento: 'Lágrimas artificiales', formato: '0,30% Frasco', cantidad_total: 1, procedencia: 'Inventario Inicial' },
+  { nombre_medicamento: 'Lágrimas artificiales', formato: '0,70% Frasco', cantidad_total: 1, procedencia: 'Inventario Inicial' },
+  { nombre_medicamento: 'Tobramicina', formato: '0,30% mg Frasco', cantidad_total: 1, procedencia: 'Inventario Inicial' },
+  { nombre_medicamento: 'Cloranfenicol', formato: '10 ml Frasco', cantidad_total: 2.5, procedencia: 'Inventario Inicial' },
+  { nombre_medicamento: 'Muxol Jarabe', formato: '30mg/5ml Frasco 100ml', cantidad_total: 1, procedencia: 'Inventario Inicial' },
+  { nombre_medicamento: 'Clorexidina', formato: 'mg Frasco', cantidad_total: 1, procedencia: 'Inventario Inicial' },
+  { nombre_medicamento: 'Levodropropizina', formato: '30mg/5ml mg Frasco', cantidad_total: 1, procedencia: 'Inventario Inicial' },
+  { nombre_medicamento: 'Bromuro Ipatropio', formato: 'Puff', cantidad_total: 2, procedencia: 'Inventario Inicial' },
+  { nombre_medicamento: 'Salbutamol', formato: 'Puff', cantidad_total: 3, procedencia: 'Inventario Inicial' },
+];
 
 export const MOCK_PURCHASES_DATA = [
   { name: 'Enero', 'Costo Total': 4000 },
@@ -72,7 +107,7 @@ export const ROLE_PANELS: Record<UserRole, Panel[]> = {
   [UserRole.Admin]: [
     Panel.Dashboard,
     Panel.Residents,
-    Panel.GeneralKit, // Nuevo Panel
+    Panel.GeneralKit,
     Panel.GeneralInventory,
     Panel.SummaryCesfam,
     Panel.SummaryIndividualStock,
@@ -81,7 +116,7 @@ export const ROLE_PANELS: Record<UserRole, Panel[]> = {
   [UserRole.Director]: [
     Panel.Dashboard,
     Panel.Residents,
-    Panel.GeneralKit, // Nuevo Panel
+    Panel.GeneralKit,
     Panel.GeneralInventory,
     Panel.SummaryCesfam,
     Panel.SummaryIndividualStock,
@@ -89,7 +124,7 @@ export const ROLE_PANELS: Record<UserRole, Panel[]> = {
   [UserRole.Tens]: [
     Panel.Dashboard,
     Panel.Residents,
-    Panel.GeneralKit, // Nuevo Panel
+    Panel.GeneralKit,
     Panel.GeneralInventory,
     Panel.SummaryCesfam,
     Panel.SummaryIndividualStock,

@@ -11,7 +11,7 @@ import PencilIcon from '../icons/PencilIcon';
 import TrashIcon from '../icons/TrashIcon';
 import ChevronUpIcon from '../icons/ChevronUpIcon';
 import ChevronDownIcon from '../icons/ChevronDownIcon';
-import ChartBarIcon from '../icons/ChartBarIcon';
+import FirstAidIcon from '../icons/FirstAidIcon';
 
 interface AdminAppPanelProps {
   currentUser: User;
@@ -20,15 +20,23 @@ interface AdminAppPanelProps {
   onDeleteUser: (userId: string) => void;
   onReorderUsers: (users: ManagedUser[]) => Promise<void>;
   onRestoreData: () => Promise<void>;
+  onImportGeneralKit: () => Promise<void>;
 }
 
-const AdminAppPanel: React.FC<AdminAppPanelProps> = ({ currentUser, users, onSaveUser, onDeleteUser, onReorderUsers, onRestoreData }) => {
+const AdminAppPanel: React.FC<AdminAppPanelProps> = ({ 
+  currentUser, 
+  users, 
+  onSaveUser, 
+  onDeleteUser, 
+  onReorderUsers, 
+  onRestoreData,
+  onImportGeneralKit
+}) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [userToEdit, setUserToEdit] = useState<ManagedUser | undefined>(undefined);
   const [userToDelete, setUserToDelete] = useState<ManagedUser | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
-  // Helper para obtener icono según rol
   const getRoleIcon = (role: UserRole) => {
     switch (role) {
       case UserRole.Admin: return SettingsIcon;
@@ -39,7 +47,6 @@ const AdminAppPanel: React.FC<AdminAppPanelProps> = ({ currentUser, users, onSav
     }
   };
 
-  // Helper para estilos de color según rol
   const getRoleStyles = (role: UserRole) => {
     switch (role) {
       case UserRole.Admin: 
@@ -117,18 +124,12 @@ const AdminAppPanel: React.FC<AdminAppPanelProps> = ({ currentUser, users, onSav
   const moveUser = async (index: number, direction: 'up' | 'down') => {
       if (direction === 'up' && index === 0) return;
       if (direction === 'down' && index === users.length - 1) return;
-
       const newUsers = [...users];
       const targetIndex = direction === 'up' ? index - 1 : index + 1;
-      
-      // Swap elements
       const temp = newUsers[index];
       newUsers[index] = newUsers[targetIndex];
       newUsers[targetIndex] = temp;
-
-      // Update displayOrder property for all (to be safe and consistent)
       const updatedUsers = newUsers.map((u, idx) => ({ ...u, displayOrder: idx }));
-
       await onReorderUsers(updatedUsers);
   };
   
@@ -136,24 +137,29 @@ const AdminAppPanel: React.FC<AdminAppPanelProps> = ({ currentUser, users, onSav
 
   return (
     <div className="animate-fade-in-down pb-20">
-      {/* Header */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-6">
         <div>
-            <h1 className="text-3xl font-extrabold text-slate-800 tracking-tight">Administración de Usuarios</h1>
-            <p className="text-slate-500 mt-1 font-medium">Gestione los accesos y roles del personal.</p>
+            <h1 className="text-3xl font-extrabold text-slate-800 tracking-tight">Administración</h1>
+            <p className="text-slate-500 mt-1 font-medium">Gestión avanzada del sistema.</p>
         </div>
-        <button
-            onClick={handleOpenModalForAdd}
-            className="px-6 py-3 bg-gradient-to-r from-brand-primary to-brand-secondary text-white font-bold rounded-xl shadow-lg shadow-brand-primary/30 hover:shadow-brand-primary/50 hover:-translate-y-0.5 transition-all active:scale-95 flex items-center gap-2"
-        >
-            <div className="bg-white/20 p-1 rounded-lg">
+        <div className="flex flex-wrap gap-3">
+             <button
+                onClick={onImportGeneralKit}
+                className="px-6 py-3 bg-white border border-slate-200 text-slate-700 font-bold rounded-xl shadow-sm hover:bg-slate-50 hover:border-brand-primary/50 transition-all active:scale-95 flex items-center gap-2"
+            >
+                <FirstAidIcon className="w-5 h-5 text-brand-primary" />
+                Importar Lista Botiquín
+            </button>
+            <button
+                onClick={handleOpenModalForAdd}
+                className="px-6 py-3 bg-gradient-to-r from-brand-primary to-brand-secondary text-white font-bold rounded-xl shadow-lg shadow-brand-primary/30 hover:shadow-brand-primary/50 hover:-translate-y-0.5 transition-all active:scale-95 flex items-center gap-2"
+            >
                 <UsersIcon className="w-5 h-5" />
-            </div>
-            Crear Usuario Nuevo
-        </button>
+                Nuevo Usuario
+            </button>
+        </div>
       </div>
 
-      {/* Grid de Usuarios */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
         {users.map((user, index) => {
             const Icon = getRoleIcon(user.role);
@@ -167,85 +173,36 @@ const AdminAppPanel: React.FC<AdminAppPanelProps> = ({ currentUser, users, onSav
                     key={user.id} 
                     className={`group bg-white rounded-3xl shadow-soft border ${styles.border} overflow-hidden hover:shadow-xl transition-all duration-300 relative`}
                 >
-                    {/* Barra Superior Color Role */}
                     <div className={`h-2 bg-gradient-to-r ${styles.gradient} w-full`}></div>
-
                     <div className="p-6">
                         <div className="flex justify-between items-start mb-4">
                             <div className={`w-12 h-12 rounded-2xl ${styles.iconBg} ${styles.text} flex items-center justify-center shadow-sm border border-white`}>
                                 <Icon className="w-6 h-6" />
                             </div>
-                            
-                            {/* Ordering Buttons */}
                             <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg border border-slate-200">
-                                <button 
-                                    onClick={() => moveUser(index, 'up')} 
-                                    disabled={isFirst}
-                                    className={`p-1 rounded-md transition-colors ${isFirst ? 'text-slate-300 cursor-not-allowed' : 'text-slate-500 hover:bg-white hover:text-brand-primary hover:shadow-sm'}`}
-                                    title="Mover arriba"
-                                >
-                                    <ChevronUpIcon className="w-4 h-4" />
-                                </button>
-                                <button 
-                                    onClick={() => moveUser(index, 'down')} 
-                                    disabled={isLast}
-                                    className={`p-1 rounded-md transition-colors ${isLast ? 'text-slate-300 cursor-not-allowed' : 'text-slate-500 hover:bg-white hover:text-brand-primary hover:shadow-sm'}`}
-                                    title="Mover abajo"
-                                >
-                                    <ChevronDownIcon className="w-4 h-4" />
-                                </button>
+                                <button onClick={() => moveUser(index, 'up')} disabled={isFirst} className={`p-1 rounded-md ${isFirst ? 'text-slate-300' : 'text-slate-500 hover:bg-white hover:text-brand-primary'}`}><ChevronUpIcon className="w-4 h-4" /></button>
+                                <button onClick={() => moveUser(index, 'down')} disabled={isLast} className={`p-1 rounded-md ${isLast ? 'text-slate-300' : 'text-slate-500 hover:bg-white hover:text-brand-primary'}`}><ChevronDownIcon className="w-4 h-4" /></button>
                             </div>
                         </div>
-
-                        <div className="mb-4">
-                            <h3 className="text-xl font-bold text-slate-800 truncate mt-2" title={user.name}>
-                                {user.name}
-                            </h3>
-                        </div>
-                        
-                        <div className="flex items-center gap-2 mb-6">
-                            <div className="w-2 h-2 rounded-full bg-slate-300"></div>
-                            <p className="text-sm font-medium text-slate-500">
-                                Permiso: <span className="text-slate-700">{user.permissions === 'Solo Lectura' ? 'Sólo Lectura' : user.permissions}</span>
-                            </p>
-                        </div>
-
-                        {/* Actions Footer */}
+                        <h3 className="text-xl font-bold text-slate-800 truncate mb-1">{user.name}</h3>
+                        <p className="text-sm font-medium text-slate-500 mb-6">{user.permissions}</p>
                         <div className="pt-4 border-t border-slate-100 flex items-center justify-end gap-2">
-                            <button 
-                                onClick={() => handleOpenModalForEdit(user)} 
-                                className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-100 hover:text-brand-primary transition-colors"
-                            >
-                                <PencilIcon className="w-4 h-4" />
-                                Modificar
-                            </button>
-                            
-                            <button 
-                                onClick={() => setUserToDelete(user)} 
-                                disabled={isCurrentUser}
-                                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-colors ${
-                                    isCurrentUser 
-                                    ? 'text-slate-300 cursor-not-allowed' 
-                                    : 'text-red-500 hover:bg-red-50 hover:text-red-600'
-                                }`}
-                                title={isCurrentUser ? "No puede eliminar su propio usuario" : "Eliminar usuario"}
-                            >
-                                <TrashIcon className="w-4 h-4" />
-                                Eliminar
-                            </button>
+                            <button onClick={() => handleOpenModalForEdit(user)} className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-100 hover:text-brand-primary transition-colors"><PencilIcon className="w-4 h-4" /> Modificar</button>
+                            <button onClick={() => setUserToDelete(user)} disabled={isCurrentUser} className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-colors ${isCurrentUser ? 'text-slate-300' : 'text-red-500 hover:bg-red-50'}`}><TrashIcon className="w-4 h-4" /> Eliminar</button>
                         </div>
                     </div>
                 </div>
             );
         })}
       </div>
-      
-      {users.length === 0 && (
-          <div className="text-center py-20 bg-slate-50 rounded-3xl border border-dashed border-slate-200 mb-12">
-              <UsersIcon className="w-16 h-16 text-slate-300 mx-auto mb-4" />
-              <p className="text-lg font-medium text-slate-500">No hay usuarios registrados.</p>
+
+      <div className="bg-slate-50 border border-dashed border-slate-300 p-8 rounded-[30px] flex flex-col md:flex-row justify-between items-center gap-6">
+          <div>
+              <h3 className="text-lg font-bold text-slate-800">Zona de Recuperación</h3>
+              <p className="text-slate-500 text-sm">Restaure la lista predeterminada de residentes si es necesario.</p>
           </div>
-      )}
+          <button onClick={onRestoreData} className="px-6 py-2 border border-slate-400 text-slate-600 font-bold rounded-xl hover:bg-white transition-all">Restaurar Residentes</button>
+      </div>
 
       {isModalOpen && (
         <UserModal 
@@ -255,7 +212,6 @@ const AdminAppPanel: React.FC<AdminAppPanelProps> = ({ currentUser, users, onSav
           isLoading={isSaving}
         />
       )}
-      
       {userToDelete && (
         <ConfirmDeleteModal
           itemName={userToDelete.name}
