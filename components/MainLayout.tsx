@@ -201,6 +201,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ user, onLogout, users, setUsers
             nombre_medicamento: item.nombre_medicamento, 
             formato: item.formato, 
             cantidad_total: parseFloat(String(item.cantidad_total)), 
+            unidad: item.unidad, // INCLUIMOS LA UNIDAD AQUÍ
             procedencia: item.procedencia, 
             fecha_adquisicion: item.fecha_adquisicion || new Date().toISOString()
         };

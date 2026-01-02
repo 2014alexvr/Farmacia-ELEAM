@@ -51,6 +51,7 @@ export interface GeneralMedication {
   nombre_medicamento: string;
   formato: string;
   cantidad_total: number;
+  unidad?: string; // Campo nuevo para la unidad (Comp, Frascos, etc)
   procedencia: string;
   fecha_adquisicion?: string;
   display_order?: number;

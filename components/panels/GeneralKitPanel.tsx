@@ -296,9 +296,12 @@ const GeneralKitPanel: React.FC<GeneralKitPanelProps> = ({ user, items, onSaveIt
                                     </td>
                                     <td className="px-5 py-4 text-slate-600 font-medium align-middle">{item.formato}</td>
                                     <td className="px-5 py-4 text-center align-middle">
-                                        <span className="inline-block px-3 py-1 bg-brand-light text-brand-primary font-bold rounded-lg border border-brand-secondary/10">
-                                            {item.cantidad_total}
-                                        </span>
+                                        <div className="flex items-center justify-center">
+                                            <span className="inline-flex items-baseline gap-1 px-3 py-1 bg-brand-light text-brand-primary font-bold rounded-lg border border-brand-secondary/10">
+                                                <span className="text-lg">{item.cantidad_total}</span>
+                                                <span className="text-xs font-extrabold uppercase ml-1 opacity-90">{item.unidad || 'Comp'}</span>
+                                            </span>
+                                        </div>
                                     </td>
                                     <td className="px-5 py-4 text-slate-500 text-sm align-middle">{item.procedencia}</td>
                                     {canModify && (

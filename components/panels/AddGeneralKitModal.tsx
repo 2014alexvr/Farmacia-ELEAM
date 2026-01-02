@@ -9,7 +9,9 @@ interface AddGeneralKitModalProps {
   itemToEdit?: GeneralMedication;
 }
 
-const DOSE_UNITS = ['Mcg', 'Mg', 'Gr', 'Ml', 'Mg/ml', 'NPH', '%', ''];
+const DOSE_UNITS = ['Mcg', 'Mg', 'Gr', 'Ml', 'Mg/ml', 'NPH', '%', 'Frascos', ''];
+// Nueva lista para la nomenclatura del stock
+const STOCK_UNITS = ['Comp', 'Gotas', 'Puff', 'UI', 'CC', 'Vacío', 'Frascos', '']; 
 const PROVENANCE_OPTIONS: Provenance[] = ['Cesfam', 'Salud Mental', 'Hospital', 'CAE Quilpué', 'CAE Viña', 'Familia', 'Compras', 'Donación'];
 
 const AddGeneralKitModal: React.FC<AddGeneralKitModalProps> = ({ onClose, onSave, itemToEdit }) => {
@@ -20,6 +22,9 @@ const AddGeneralKitModal: React.FC<AddGeneralKitModalProps> = ({ onClose, onSave
   const [doseUnit, setDoseUnit] = useState('Mg');
 
   const [cantidadTotal, setCantidadTotal] = useState('');
+  // Nuevo estado para la unidad del stock
+  const [stockUnit, setStockUnit] = useState('Comp');
+
   const [procedencia, setProcedencia] = useState<string>('Compras');
   const [fechaAdquisicion, setFechaAdquisicion] = useState(new Date().toISOString().split('T')[0]);
 
@@ -49,6 +54,9 @@ const AddGeneralKitModal: React.FC<AddGeneralKitModalProps> = ({ onClose, onSave
       }
 
       setCantidadTotal(String(itemToEdit.cantidad_total));
+      // Recuperar unidad de BD o usar default
+      setStockUnit(itemToEdit.unidad || 'Comp');
+
       setProcedencia(itemToEdit.procedencia || 'Compras');
       if (itemToEdit.fecha_adquisicion) {
           setFechaAdquisicion(itemToEdit.fecha_adquisicion.split('T')[0]);
@@ -69,6 +77,7 @@ const AddGeneralKitModal: React.FC<AddGeneralKitModalProps> = ({ onClose, onSave
       nombre_medicamento: nombreMedicamento.trim(),
       formato: fullFormat,
       cantidad_total: parseFloat(cantidadTotal),
+      unidad: stockUnit, // Guardamos la unidad seleccionada
       procedencia: procedencia,
       fecha_adquisicion: fechaAdquisicion,
     };
@@ -154,18 +163,27 @@ const AddGeneralKitModal: React.FC<AddGeneralKitModalProps> = ({ onClose, onSave
                     </div>
                 </div>
 
-                {/* Cantidad Total */}
+                {/* Cantidad Total con Selector de Unidad */}
                 <div>
                     <label className={labelStyle}>Cantidad Total *</label>
-                    <input 
-                        type="number" 
-                        step="any"
-                        value={cantidadTotal} 
-                        onChange={e => setCantidadTotal(e.target.value)} 
-                        className={inputRounded}
-                        placeholder="0"
-                        required 
-                    />
+                    <div className="flex shadow-sm rounded-2xl overflow-hidden">
+                        <input 
+                            type="number" 
+                            step="any"
+                            value={cantidadTotal} 
+                            onChange={e => setCantidadTotal(e.target.value)} 
+                            className={inputLeft}
+                            placeholder="0"
+                            required 
+                        />
+                        <select 
+                            value={stockUnit} 
+                            onChange={e => setStockUnit(e.target.value)} 
+                            className={`${inputRight} w-24 text-center text-xs border-l border-slate-600`}
+                        >
+                            {STOCK_UNITS.map(u => <option key={u} value={u}>{u || 'N/A'}</option>)}
+                        </select>
+                    </div>
                 </div>
             </div>
 
