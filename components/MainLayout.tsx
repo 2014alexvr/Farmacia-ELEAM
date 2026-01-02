@@ -15,7 +15,7 @@ import AdminAppPanel from './panels/AdminAppPanel';
 import GeneralInventoryPanel from './panels/GeneralInventoryPanel';
 import GeneralKitPanel from './panels/GeneralKitPanel';
 import { supabase } from '../supabaseClient';
-import { GoogleGenAI, Type } from '@google/genai';
+import readXlsxFile from 'read-excel-file';
 
 interface MainLayoutProps {
   user: User;
@@ -102,93 +102,63 @@ const MainLayout: React.FC<MainLayoutProps> = ({ user, onLogout, users, setUsers
     fetchData();
   }, [fetchData]); 
 
-  // --- GENERAL KIT ACTIONS (WITH AI IMPORT) ---
+  // --- GENERAL KIT ACTIONS (WITH EXCEL IMPORT) ---
   const handleImportGeneralKit = useCallback(async (file: File) => {
       setLoadingData(true);
       try {
-          if (!process.env.API_KEY) {
-              throw new Error("API Key de Google no configurada. No se puede procesar la imagen.");
+          // 1. Read Excel File
+          const rows = await readXlsxFile(file);
+          
+          if (rows.length < 2) {
+              throw new Error("El archivo parece estar vacío o no contiene datos suficientes.");
           }
 
-          // 1. Convert File to Base64
-          const base64Data = await new Promise<string>((resolve, reject) => {
-              const reader = new FileReader();
-              reader.readAsDataURL(file);
-              reader.onload = () => {
-                  const result = reader.result as string;
-                  // Remove the Data URL prefix (e.g., "data:image/jpeg;base64,")
-                  const base64Part = result.split(',')[1];
-                  resolve(base64Part);
+          // 2. Identify Headers (Normalize to lowercase for simpler matching)
+          const headers = rows[0].map((h: any) => String(h).toLowerCase().trim());
+          
+          const nameIndex = headers.findIndex(h => h.includes('nombre'));
+          const formatIndex = headers.findIndex(h => h.includes('formato'));
+          const stockIndex = headers.findIndex(h => h.includes('stock') || h.includes('cantidad'));
+          const provIndex = headers.findIndex(h => h.includes('procedencia') || h.includes('origen'));
+          // Optional: unit column if exists in excel, otherwise default
+          const unitIndex = headers.findIndex(h => h.includes('unidad'));
+
+          if (nameIndex === -1 || stockIndex === -1) {
+              throw new Error("El archivo Excel debe contener al menos las columnas 'Nombre' y 'Stock'.");
+          }
+
+          // 3. Map Rows to Objects
+          const extractedItems = rows.slice(1).map((row: any[]) => {
+              const name = row[nameIndex] ? String(row[nameIndex]).trim() : '';
+              if (!name) return null; // Skip empty rows
+
+              return {
+                  nombre_medicamento: name,
+                  formato: formatIndex > -1 ? String(row[formatIndex] || '') : '',
+                  cantidad_total: parseFloat(String(row[stockIndex] || 0)) || 0,
+                  unidad: unitIndex > -1 ? String(row[unitIndex] || 'Comp') : 'Comp',
+                  procedencia: provIndex > -1 ? String(row[provIndex] || 'Inventario Excel') : 'Inventario Excel',
+                  fecha_adquisicion: new Date().toISOString()
               };
-              reader.onerror = error => reject(error);
-          });
+          }).filter(item => item !== null);
 
-          // 2. Initialize Gemini
-          const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-
-          // 3. Prepare the Prompt and Schema
-          const prompt = "Analiza esta imagen de una lista de medicamentos. Extrae la información y devuélvela estrictamente en formato JSON. Si no puedes determinar el stock, usa 0. Si no hay procedencia visible, usa 'Inventario Inicial'. El formato debe ser nombre, formato (ej: 500mg), cantidad y procedencia.";
-          
-          const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash-latest',
-            contents: {
-                parts: [
-                    {
-                        inlineData: {
-                            mimeType: file.type || 'image/jpeg',
-                            data: base64Data
-                        }
-                    },
-                    { text: prompt }
-                ]
-            },
-            config: {
-                responseMimeType: "application/json",
-                responseSchema: {
-                    type: Type.ARRAY,
-                    items: {
-                        type: Type.OBJECT,
-                        properties: {
-                            nombre_medicamento: { type: Type.STRING },
-                            formato: { type: Type.STRING },
-                            cantidad_total: { type: Type.NUMBER },
-                            procedencia: { type: Type.STRING }
-                        },
-                        required: ["nombre_medicamento", "formato", "cantidad_total"]
-                    }
-                }
-            }
-          });
-          
-          // 4. Parse Response
-          const extractedItems = JSON.parse(response.text || '[]');
-
-          if (!Array.isArray(extractedItems) || extractedItems.length === 0) {
-              throw new Error("No se pudieron extraer medicamentos de la imagen.");
+          if (extractedItems.length === 0) {
+              throw new Error("No se encontraron medicamentos válidos en el archivo.");
           }
 
-          // 5. Prepare Payload for Supabase
-          const payload = extractedItems.map(item => ({
-              nombre_medicamento: item.nombre_medicamento,
-              formato: item.formato,
-              cantidad_total: parseFloat(String(item.cantidad_total || 0)),
-              procedencia: item.procedencia || 'Inventario Inicial',
-              fecha_adquisicion: new Date().toISOString()
-          }));
-
-          // 6. Insert into Supabase
+          // 4. Insert into Supabase (Upsert based on name + format)
           const { error: insError } = await supabase
             .from('farmacia_general_stock')
-            .upsert(payload, { onConflict: 'nombre_medicamento,formato' });
+            .upsert(extractedItems, { onConflict: 'nombre_medicamento,formato' });
             
           if (insError) throw insError;
           
-          alert(`✅ ¡Éxito! Se han procesado e importado ${extractedItems.length} medicamentos desde la imagen.`);
+          alert(`✅ ¡Éxito! Se han importado ${extractedItems.length} medicamentos desde el archivo Excel.`);
           await fetchData();
 
       } catch (e: any) {
-          console.error("Error al procesar imagen con IA:", e);
-          alert("❌ Error al procesar imagen: " + (e.message || "No se pudo analizar la imagen."));
+          console.error("Error al procesar Excel:", e);
+          alert("❌ Error al procesar archivo: " + (e.message || "Verifique el formato del Excel."));
       } finally {
           setLoadingData(false);
       }
@@ -406,10 +376,6 @@ const MainLayout: React.FC<MainLayoutProps> = ({ user, onLogout, users, setUsers
           await onUsersMutated();
           await fetchData();
       }} onRestoreData={handleRestoreData} onImportGeneralKit={() => {
-        // This is for AdminAppPanel's button, usually triggers the same logic, 
-        // but AdminAppPanel needs a file input trigger too if we want to use it there.
-        // For now, let's just make it alert that it should be done from General Kit or add a mock click.
-        // Since the prompt focused on GeneralKitPanel, we leave this as is or wire it if requested.
         alert("Por favor utilice la carga desde el panel de Botiquín General.");
         return Promise.resolve();
       }} />;

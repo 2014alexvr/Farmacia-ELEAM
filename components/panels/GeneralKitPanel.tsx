@@ -7,7 +7,7 @@ import TrashIcon from '../icons/TrashIcon';
 import FirstAidIcon from '../icons/FirstAidIcon';
 import ChevronUpIcon from '../icons/ChevronUpIcon';
 import ChevronDownIcon from '../icons/ChevronDownIcon';
-import DownloadIcon from '../icons/UploadIcon'; // Re-using upload as import visual
+import UploadIcon from '../icons/UploadIcon';
 
 interface GeneralKitPanelProps {
   user: User;
@@ -152,12 +152,12 @@ const GeneralKitPanel: React.FC<GeneralKitPanelProps> = ({ user, items, onSaveIt
 
   return (
     <div className="animate-fade-in-down pb-20">
-      {/* Hidden File Input */}
+      {/* Hidden File Input - Updated to accept Excel/CSV */}
       <input 
         type="file" 
         ref={fileInputRef} 
         onChange={handleFileChange} 
-        accept="image/*" 
+        accept=".xlsx, .xls, .csv" 
         className="hidden" 
       />
 
@@ -178,8 +178,8 @@ const GeneralKitPanel: React.FC<GeneralKitPanelProps> = ({ user, items, onSaveIt
                       onClick={handleImportClick}
                       className="px-6 py-3 bg-white border border-brand-primary text-brand-primary font-bold rounded-xl shadow-sm hover:bg-brand-light transition-all flex items-center gap-2"
                   >
-                      <DownloadIcon className="w-5 h-5" />
-                      Cargar Lista de Imagen
+                      <UploadIcon className="w-5 h-5" />
+                      Cargar Lista Excel
                   </button>
                   <button
                       onClick={handleOpenAdd}
@@ -297,7 +297,7 @@ const GeneralKitPanel: React.FC<GeneralKitPanelProps> = ({ user, items, onSaveIt
                                     <td className="px-5 py-4 text-slate-600 font-medium align-middle">{item.formato}</td>
                                     <td className="px-5 py-4 text-center align-middle">
                                         <div className="flex items-center justify-center">
-                                            <span className="inline-flex items-baseline gap-1 px-3 py-1 bg-brand-light text-brand-primary font-bold rounded-lg border border-brand-secondary/10">
+                                            <span className="inline-flex items-baseline gap-1.5 px-3 py-1 bg-brand-light text-brand-primary font-bold rounded-lg border border-brand-secondary/10">
                                                 <span className="text-lg">{item.cantidad_total}</span>
                                                 <span className="text-xs font-extrabold uppercase ml-1 opacity-90">{item.unidad || 'Comp'}</span>
                                             </span>
