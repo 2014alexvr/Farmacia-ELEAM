@@ -53,7 +53,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ user, onLogout, users, setUsers
         const { data: residentsData } = await supabase.from('residents').select('*').order('display_order', { ascending: true });
         if (residentsData) {
           setResidents(residentsData.map((r: any) => ({
-             id: r.id, name: r.name, rut: r.rut, date_of_birth: r.date_of_birth, displayOrder: r.display_order
+             id: r.id, name: r.name, rut: r.rut, dateOfBirth: r.date_of_birth, displayOrder: r.display_order
           })));
         }
 

@@ -120,8 +120,20 @@ const ResidentMedicationsPanel: React.FC<ResidentMedicationsPanelProps> = ({
     
     const tableColumn = ["Medicamento", "Dosis", "Horarios", "Posología", "Gasto Diario", "Stock", "Días con Stock", "Procedencia", "Fecha de Entrega"];
     const tableRows = medications.map(med => {
+      // Logic for PDF (consistent with display)
       const dailyExpense = med.schedules.reduce((sum, s) => sum + (Number(s.quantity) || 0), 0);
-      const stockDays = dailyExpense > 0 ? Math.floor(med.stock / dailyExpense) : 'N/A';
+      
+      const anchorDateStr = med.stockUpdatedAt || new Date().toISOString();
+      const anchorDate = new Date(anchorDateStr);
+      const today = new Date();
+      anchorDate.setHours(0,0,0,0);
+      today.setHours(0,0,0,0);
+      const diffTime = today.getTime() - anchorDate.getTime();
+      const daysElapsed = Math.max(0, Math.floor(diffTime / (1000 * 60 * 60 * 24)));
+      const consumed = dailyExpense * daysElapsed;
+      const realStock = Math.max(0, med.stock - consumed);
+
+      const stockDays = dailyExpense > 0 ? Math.floor(realStock / dailyExpense) : 'N/A';
       
       const schedulesText = med.schedules.filter(s => s.time && s.quantity).map(s => s.time).join('\n');
       const posologyText = med.schedules.filter(s => s.time && s.quantity).map(s => `${s.quantity} ${s.unit}`).join('\n');
@@ -132,7 +144,7 @@ const ResidentMedicationsPanel: React.FC<ResidentMedicationsPanelProps> = ({
         schedulesText,
         posologyText,
         dailyExpense.toString(),
-        `${med.stock} ${med.stockUnit}`,
+        `${parseFloat(realStock.toFixed(2))} ${med.stockUnit}`,
         stockDays.toString(),
         med.provenance,
         med.deliveryDate ? new Date(med.deliveryDate).toLocaleDateString('es-CL', { timeZone: 'UTC' }) : ''
@@ -295,8 +307,26 @@ const ResidentMedicationsPanel: React.FC<ResidentMedicationsPanelProps> = ({
                 <tbody className="divide-y divide-slate-100">
                   {medications.length > 0 ? (
                     medications.map((med, index) => {
-                      const dailyExpense = med.schedules.reduce((sum, s) => sum + s.quantity, 0);
-                      const stockDays = dailyExpense > 0 ? Math.floor(med.stock / dailyExpense) : 'N/A';
+                      const dailyExpense = med.schedules.reduce((sum, s) => sum + (Number(s.quantity) || 0), 0);
+                      
+                      // --- LÓGICA CORREGIDA DE STOCK VIRTUAL ---
+                      // Calculamos el stock "en vivo" para que coincida con el modal
+                      const anchorDateStr = med.stockUpdatedAt || new Date().toISOString();
+                      const anchorDate = new Date(anchorDateStr);
+                      const today = new Date();
+                      
+                      // Normalizar fechas para evitar errores por horas
+                      anchorDate.setHours(0,0,0,0);
+                      today.setHours(0,0,0,0);
+                      
+                      const diffTime = today.getTime() - anchorDate.getTime();
+                      const daysElapsed = Math.max(0, Math.floor(diffTime / (1000 * 60 * 60 * 24)));
+                      
+                      const consumed = dailyExpense * daysElapsed;
+                      // El stock base es lo que hay en BD, le restamos lo consumido virtualmente desde la última actualización
+                      const realStock = Math.max(0, med.stock - consumed);
+
+                      const stockDays = dailyExpense > 0 ? Math.floor(realStock / dailyExpense) : 'N/A';
                       const isLowStock = typeof stockDays === 'number' && stockDays < lowStockThreshold;
                       const isFirst = index === 0;
                       const isLast = index === medications.length - 1;
@@ -338,7 +368,10 @@ const ResidentMedicationsPanel: React.FC<ResidentMedicationsPanelProps> = ({
                              {med.schedules.map((s, i) => <div key={i} className="mb-0.5">{`${s.quantity} ${s.unit}`}</div>)}
                           </td>
                           <td className="px-2 py-3 text-center text-slate-600 align-top text-sm font-semibold">{dailyExpense}</td>
-                          <td className="px-2 py-3 text-center text-slate-800 font-bold align-top text-sm whitespace-nowrap">{`${med.stock} ${med.stockUnit}`}</td>
+                          <td className="px-2 py-3 text-center text-slate-800 font-bold align-top text-sm whitespace-nowrap">
+                              {/* Mostrar el stock calculado REAL, no el de la BD antigua */}
+                              {`${parseFloat(realStock.toFixed(2))} ${med.stockUnit}`}
+                          </td>
                           <td className="px-2 py-3 text-center align-top text-sm">
                               <span className={`font-bold ${isLowStock ? 'text-red-500' : 'text-emerald-600'}`}>{stockDays}</span>
                           </td>
