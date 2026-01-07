@@ -12,15 +12,33 @@ const SummaryCesfamPanel: React.FC<SummaryCesfamPanelProps> = ({ residents, resi
     const lowStockItems: LowStockItem[] = useMemo(() => {
         const items: LowStockItem[] = [];
         residentMedications.forEach(med => {
-            const dailyExpense = med.schedules.reduce((sum, s) => sum + s.quantity, 0);
+            const dailyExpense = med.schedules.reduce((sum, s) => sum + (Number(s.quantity) || 0), 0);
+            
             if (dailyExpense > 0) {
-                const stockDays = Math.floor(med.stock / dailyExpense);
+                // --- LÓGICA DE STOCK VIRTUAL (IGUAL QUE EN FICHA INDIVIDUAL) ---
+                const anchorDateStr = med.stockUpdatedAt || new Date().toISOString();
+                const anchorDate = new Date(anchorDateStr);
+                const today = new Date();
+                
+                // Normalizar fechas a media noche para diferencia exacta de días
+                anchorDate.setHours(0,0,0,0);
+                today.setHours(0,0,0,0);
+                
+                const diffTime = today.getTime() - anchorDate.getTime();
+                const daysElapsed = Math.max(0, Math.floor(diffTime / (1000 * 60 * 60 * 24)));
+                
+                const consumed = dailyExpense * daysElapsed;
+                const realStock = Math.max(0, med.stock - consumed); // Stock proyectado al día de hoy
+                
+                const stockDays = Math.floor(realStock / dailyExpense);
+
                 if (stockDays < lowStockThreshold) {
                     const resident = residents.find(r => r.id === med.residentId);
                     items.push({
                         medicationName: `${med.medicationName} ${med.doseValue}${med.doseUnit}`,
                         residentName: resident ? resident.name : 'Desconocido',
-                        currentStock: `${med.stock} ${med.stockUnit}`,
+                        // MOSTRAR STOCK VIRTUAL CALCULADO, NO EL DE LA BD
+                        currentStock: `${parseFloat(realStock.toFixed(2))} ${med.stockUnit}`,
                         stockDays: stockDays,
                     });
                 }

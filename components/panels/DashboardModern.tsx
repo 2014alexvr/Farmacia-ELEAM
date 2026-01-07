@@ -25,8 +25,26 @@ const DashboardModern: React.FC<DashboardProps> = ({ user, residents, residentMe
     const lowStockMedications = useMemo(() => {
         return residentMedications.reduce((count, med) => {
              const dailyExpense = med.schedules.reduce((sum, s) => sum + (Number(s.quantity) || 0), 0);
+             
              if (dailyExpense > 0) {
-                 const stockDays = Math.floor(med.stock / dailyExpense);
+                 // --- LÓGICA DE STOCK VIRTUAL (IGUAL QUE EN FICHA INDIVIDUAL) ---
+                 const anchorDateStr = med.stockUpdatedAt || new Date().toISOString();
+                 const anchorDate = new Date(anchorDateStr);
+                 const today = new Date();
+                 
+                 // Normalizar fechas a media noche
+                 anchorDate.setHours(0,0,0,0);
+                 today.setHours(0,0,0,0);
+                 
+                 const diffTime = today.getTime() - anchorDate.getTime();
+                 const daysElapsed = Math.max(0, Math.floor(diffTime / (1000 * 60 * 60 * 24)));
+                 
+                 const consumed = dailyExpense * daysElapsed;
+                 const realStock = Math.max(0, med.stock - consumed); // Stock proyectado al día de hoy
+                 
+                 // Calcular cobertura con el stock real proyectado
+                 const stockDays = Math.floor(realStock / dailyExpense);
+
                  if (stockDays < lowStockThreshold) {
                      return count + 1;
                  }
@@ -198,7 +216,7 @@ const DashboardModern: React.FC<DashboardProps> = ({ user, residents, residentMe
                 </button>
                 <div className="text-center min-w-[80px]">
                     <p className="text-2xl font-extrabold text-brand-primary leading-none">{lowStockThreshold}</p>
-                    <p className="text-[10px] font-bold text-slate-400 uppercase mt-1">Días</p>
+                    <p className="text-xs font-bold text-slate-400 uppercase mt-1">Días</p>
                 </div>
                 <button 
                     onClick={() => onUpdateThreshold(lowStockThreshold + 1)}
