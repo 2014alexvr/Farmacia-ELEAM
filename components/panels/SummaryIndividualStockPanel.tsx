@@ -135,7 +135,7 @@ const SummaryIndividualStockPanel: React.FC<SummaryIndividualStockPanelProps> = 
   );
 
   return (
-    <div className="w-full">
+    <div className="w-full max-w-full min-w-full">
       <div className="mb-8">
         <h1 className="text-3xl font-extrabold text-slate-800 tracking-tight">Resumen de Stock Individual</h1>
         <p className="text-slate-500 mt-2 font-medium">
@@ -143,8 +143,9 @@ const SummaryIndividualStockPanel: React.FC<SummaryIndividualStockPanelProps> = 
         </p>
       </div>
 
-      <div className="bg-white p-6 rounded-3xl shadow-soft border border-slate-100 max-w-full">
-        <div className="overflow-x-auto custom-scrollbar">
+      {/* FORCE BRUTE: w-full max-w-full */}
+      <div className="bg-white p-4 sm:p-6 rounded-3xl shadow-soft border border-slate-100 w-full max-w-full min-w-full overflow-hidden">
+        <div className="overflow-x-auto w-full custom-scrollbar">
           <table className="w-full text-left border-collapse min-w-[800px]">
             <thead className="bg-slate-50 border-b border-slate-100">
               <tr>

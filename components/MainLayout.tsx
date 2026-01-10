@@ -383,10 +383,10 @@ const MainLayout: React.FC<MainLayoutProps> = ({ user, onLogout, users, setUsers
     }
   };
 
-  // APP SHELL LAYOUT - CRITICAL FIX FOR MOBILE WIDTH
-  // Using explicit flex directions and w-full/h-full to prevent "zoom out" effects on mobile.
+  // FORCE BRUTE: FLUID LAYOUT
+  // Removed max-w, container, and large margins.
   return (
-    <div className="flex flex-col xl:flex-row h-full w-full bg-surface-ground font-sans text-slate-600 print:block overflow-hidden">
+    <div className="flex flex-col xl:flex-row min-h-full w-full bg-surface-ground font-sans text-slate-600 print:block">
       
       {/* Sidebar Component: It handles its own fixed/relative state */}
       <Sidebar 
@@ -400,18 +400,20 @@ const MainLayout: React.FC<MainLayoutProps> = ({ user, onLogout, users, setUsers
       />
 
       {/* Main Content Area */}
-      {/* flex-1 takes remaining space. min-w-0 prevents flex items from overflowing container */}
-      <div className="flex-1 flex flex-col min-w-0 h-full w-full relative">
+      {/* FORCE FULL WIDTH on flex item */}
+      <div className="flex-1 flex flex-col min-w-0 w-full relative">
         
         {/* Mobile Header */}
-        <header className="xl:hidden bg-white shadow-sm flex justify-between items-center p-4 sticky top-0 z-10 border-b border-slate-200 shrink-0">
+        <header className="xl:hidden bg-white shadow-sm flex justify-between items-center p-4 sticky top-0 z-10 border-b border-slate-200 shrink-0 w-full">
             <button onClick={() => setIsSidebarOpen(true)} className="text-slate-600"><MenuIcon className="w-6 h-6" /></button>
             <h1 className="text-lg font-bold text-slate-800 truncate px-2">{activePanel}</h1>
             <div className="w-6"></div>
         </header>
 
-        {/* Scrollable Panel Area */}
-        <main className="flex-1 overflow-y-auto p-3 xl:p-10 w-full custom-scrollbar">
+        {/* Scrollable Panel Area - FORCE FULL WIDTH */}
+        {/* Using w-full max-w-full min-w-full to prevent "corset" effect */}
+        {/* Reduced padding p-2 on mobile to maximize table width */}
+        <main className="flex-1 w-full max-w-full min-w-full p-2 md:p-6 lg:p-8">
           {renderPanel()}
         </main>
       </div>

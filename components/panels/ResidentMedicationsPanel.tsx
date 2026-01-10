@@ -38,6 +38,41 @@ const calculateAge = (dob: string): number => {
     return age;
 };
 
+// --- FUNCIÓN AUXILIAR DE CÁLCULO DE FECHA ---
+const calculateRefillDate = (daysRemaining: number | string, threshold: number) => {
+    // Caso 1: Stock Indefinido o Error
+    if (typeof daysRemaining !== 'number') {
+        return { text: '-', className: 'text-slate-400' };
+    }
+
+    // Caso 2: Sin Stock o Stock Negativo
+    if (daysRemaining <= 0) {
+        return { text: 'Agotado', className: 'text-red-600 font-extrabold uppercase text-[10px]' };
+    }
+
+    // Caso 3: Cálculo Matemático (Hoy + Días Restantes)
+    const today = new Date();
+    const targetDate = new Date(today);
+    targetDate.setDate(today.getDate() + daysRemaining);
+
+    // Formateo dd/mm/aaaa
+    const day = String(targetDate.getDate()).padStart(2, '0');
+    const month = String(targetDate.getMonth() + 1).padStart(2, '0');
+    const year = targetDate.getFullYear();
+    const dateStr = `${day}/${month}/${year}`;
+
+    // Caso 4: Lógica de Colores (Semáforo)
+    let className = 'text-blue-600 font-medium'; // Futuro seguro (Azul)
+
+    if (daysRemaining <= 2) {
+        className = 'text-red-600 font-extrabold'; // Crítico (Rojo)
+    } else if (daysRemaining < threshold) {
+        className = 'text-amber-600 font-bold'; // Alerta (Ámbar)
+    }
+
+    return { text: dateStr, className };
+};
+
 const ResidentMedicationsPanel: React.FC<ResidentMedicationsPanelProps> = ({ 
   user, 
   resident, 
@@ -118,7 +153,7 @@ const ResidentMedicationsPanel: React.FC<ResidentMedicationsPanelProps> = ({
     doc.text(`Edad: ${age} años`, 140, 42);
     doc.text(`Fecha de Emisión: ${new Date().toLocaleDateString('es-CL')}`, 140, 47);
     
-    const tableColumn = ["Medicamento", "Dosis", "Horarios", "Posología", "Gasto Diario", "Stock", "Días con Stock", "Procedencia", "Fecha de Entrega"];
+    const tableColumn = ["Medicamento", "Dosis", "Horarios", "Posología", "Gasto Diario", "Stock", "Días con Stock", "Procedencia", "Próx. Reposición"];
     const tableRows = medications.map(med => {
       // Logic for PDF (consistent with display)
       const dailyExpense = med.schedules.reduce((sum, s) => sum + (Number(s.quantity) || 0), 0);
@@ -135,6 +170,19 @@ const ResidentMedicationsPanel: React.FC<ResidentMedicationsPanelProps> = ({
 
       const stockDays = dailyExpense > 0 ? Math.floor(realStock / dailyExpense) : 'N/A';
       
+      // Calculate Refill Date for PDF
+      let refillDateText = '';
+      if (typeof stockDays === 'number') {
+          if (stockDays <= 0) refillDateText = 'Agotado';
+          else {
+             const d = new Date();
+             d.setDate(d.getDate() + stockDays);
+             refillDateText = d.toLocaleDateString('es-CL');
+          }
+      } else {
+          refillDateText = '-';
+      }
+      
       const schedulesText = med.schedules.filter(s => s.time && s.quantity).map(s => s.time).join('\n');
       const posologyText = med.schedules.filter(s => s.time && s.quantity).map(s => `${s.quantity} ${s.unit}`).join('\n');
 
@@ -147,7 +195,7 @@ const ResidentMedicationsPanel: React.FC<ResidentMedicationsPanelProps> = ({
         `${parseFloat(realStock.toFixed(2))} ${med.stockUnit}`,
         stockDays.toString(),
         med.provenance,
-        med.deliveryDate ? new Date(med.deliveryDate).toLocaleDateString('es-CL', { timeZone: 'UTC' }) : ''
+        refillDateText
       ];
     });
 
@@ -200,10 +248,8 @@ const ResidentMedicationsPanel: React.FC<ResidentMedicationsPanelProps> = ({
   };
 
   // LAYOUT FIX: Re-written for Mobile First.
-  // 1. Root container is flex-col, w-full, items-stretch. NO grid on root.
-  // 2. Info Card and Table Card are direct children with w-full.
   return (
-    <div className="flex flex-col w-full min-w-full items-stretch gap-6 animate-fade-in-down">
+    <div className="flex flex-col w-full min-w-full max-w-full items-stretch gap-6 animate-fade-in-down">
       
       {/* Navigation Button */}
       <div className="w-full">
@@ -247,7 +293,7 @@ const ResidentMedicationsPanel: React.FC<ResidentMedicationsPanelProps> = ({
       </div>
 
       {/* STACKED CONTENT: Info on Top, Table on Bottom (For Mobile & Desktop) */}
-      <div className="flex flex-col w-full gap-6">
+      <div className="flex flex-col w-full max-w-full gap-6">
           
           {/* Resident Info Card - FORCED WIDTH 100% */}
           <div className="w-full bg-white p-4 rounded-3xl shadow-soft border border-slate-100 block">
@@ -298,7 +344,7 @@ const ResidentMedicationsPanel: React.FC<ResidentMedicationsPanelProps> = ({
                     <th className="px-2 py-3 font-bold text-[10px] text-slate-400 uppercase tracking-wider text-center">Stock</th>
                     <th className="px-2 py-3 font-bold text-[10px] text-slate-400 uppercase tracking-wider text-center">Días</th>
                     <th className="px-2 py-3 font-bold text-[10px] text-slate-400 uppercase tracking-wider">Origen</th>
-                    <th className="px-2 py-3 font-bold text-[10px] text-slate-400 uppercase tracking-wider">F. Entrega</th>
+                    <th className="px-2 py-3 font-bold text-[10px] text-slate-400 uppercase tracking-wider">PROX. REPOSICIÓN</th>
                     <th className="px-2 py-3 font-bold text-[10px] text-slate-400 uppercase tracking-wider text-center">CANT. ADQ.</th>
                     <th className="px-2 py-3 font-bold text-[10px] text-slate-400 uppercase tracking-wider">F. ADQ.</th>
                     <th className="px-2 py-3 font-bold text-[10px] text-slate-400 uppercase tracking-wider text-center print:hidden rounded-tr-xl">Acciones</th>
@@ -331,6 +377,9 @@ const ResidentMedicationsPanel: React.FC<ResidentMedicationsPanelProps> = ({
                       const isFirst = index === 0;
                       const isLast = index === medications.length - 1;
                       
+                      // --- CÁLCULO DE FECHA DE REPOSICIÓN ---
+                      const refillInfo = calculateRefillDate(stockDays, lowStockThreshold);
+
                       return (
                         <tr key={med.id} className={`group hover:bg-slate-50 transition-colors ${isLowStock ? 'bg-red-50/40 hover:bg-red-50/60' : ''}`}>
                           
@@ -384,9 +433,12 @@ const ResidentMedicationsPanel: React.FC<ResidentMedicationsPanelProps> = ({
                                   {med.provenance}
                               </span>
                           </td>
-                          <td className="px-2 py-3 text-slate-600 align-top font-medium text-xs whitespace-nowrap">
-                            {med.deliveryDate ? new Date(med.deliveryDate).toLocaleDateString('es-CL', { timeZone: 'UTC' }) : 'N/A'}
+                          
+                          {/* COLUMNA FECHA DE REPOSICIÓN CALCULADA */}
+                          <td className={`px-2 py-3 align-top text-xs whitespace-nowrap ${refillInfo.className}`}>
+                            {refillInfo.text}
                           </td>
+
                           <td className="px-2 py-3 text-slate-600 align-top font-bold text-xs text-center">
                             {med.acquisitionQuantity ? med.acquisitionQuantity : '-'}
                           </td>

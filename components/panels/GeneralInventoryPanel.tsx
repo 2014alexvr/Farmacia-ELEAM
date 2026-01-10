@@ -157,7 +157,7 @@ const GeneralInventoryPanel: React.FC<GeneralInventoryPanelProps> = ({ residentM
   );
 
   return (
-    <div onClick={() => setActivePopoverKey(null)}>
+    <div className="w-full max-w-full" onClick={() => setActivePopoverKey(null)}>
       <div className="mb-8">
         <h1 className="text-3xl font-extrabold text-slate-800 tracking-tight">Inventario General</h1>
         <p className="text-slate-500 mt-2 font-medium">
@@ -165,7 +165,7 @@ const GeneralInventoryPanel: React.FC<GeneralInventoryPanelProps> = ({ residentM
         </p>
       </div>
 
-      <div className="bg-white p-6 rounded-3xl shadow-soft border border-slate-100">
+      <div className="bg-white p-6 rounded-3xl shadow-soft border border-slate-100 w-full max-w-full">
         
         {/* Search Bar */}
         <div className="mb-6">
@@ -185,7 +185,7 @@ const GeneralInventoryPanel: React.FC<GeneralInventoryPanelProps> = ({ residentM
             </div>
         </div>
 
-        <div className="overflow-x-auto pb-20 custom-scrollbar"> 
+        <div className="overflow-x-auto pb-20 custom-scrollbar w-full"> 
           <table className="w-full text-left border-collapse">
             <thead className="bg-slate-50 border-b border-slate-100">
               <tr>

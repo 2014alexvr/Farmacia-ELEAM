@@ -8,13 +8,12 @@
     <meta http-equiv="Pragma" content="no-cache" />
     <meta http-equiv="Expires" content="0" />
 
-    <!-- VIEWPORT: Updated to allow maximum zooming capabilities on Android/iOS -->
+    <!-- VIEWPORT: Standard viewport tag for mobile responsiveness -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes" />
     
     <title>FARMACIA ELEAM EL NAZARENO</title>
     
     <!-- NOTE: The manifest link and Service Worker registration are now INJECTED AUTOMATICALLY by VitePWA -->
-    <!-- Do not add <link rel="manifest"> here manually to avoid version conflicts -->
 
     <meta name="theme-color" content="#0d9488" />
     <link rel="apple-touch-icon" href="/icono-farmacia.png">
@@ -71,13 +70,30 @@
       }
     </script>
     <style>
-      /* CRITICAL FIX: App Shell Pattern */
-      html, body, #root {
-        height: 100%;
+      /* CSS DE RESETEO PARA ANCHO COMPLETO (MIRROR DE INDEX.CSS) */
+      :root {
         width: 100%;
-        overflow: hidden; /* Disable browser scroll, let App handle it */
+        max-width: 100%;
         margin: 0;
         padding: 0;
+      }
+      
+      body {
+        margin: 0;
+        padding: 0;
+        width: 100vw;
+        min-width: 320px;
+        min-height: 100vh;
+        overflow-x: hidden;
+        background-color: #f8fafc;
+      }
+      
+      #root {
+        width: 100%;
+        max-width: 100%;
+        margin: 0;
+        padding: 0;
+        text-align: left;
       }
     </style>
   <script type="importmap">

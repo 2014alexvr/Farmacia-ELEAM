@@ -1,0 +1,29 @@
+/* CSS DE RESETEO PARA ANCHO COMPLETO */
+:root {
+  width: 100%;
+  max-width: 100%;
+  margin: 0;
+  padding: 0;
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  width: 100vw; /* 100% del ancho del viewport */
+  min-width: 320px;
+  min-height: 100vh;
+  overflow-x: hidden; /* Evita scroll horizontal indeseado */
+  background-color: #f8fafc;
+}
+
+#root {
+  width: 100%;
+  max-width: 100%;
+  margin: 0;
+  padding: 0;
+  /* Asegura que no haya alineación forzada */
+  text-align: left; 
+}
