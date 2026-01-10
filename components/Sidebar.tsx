@@ -63,15 +63,15 @@ const Sidebar: React.FC<SidebarProps> = ({ user, activePanel, setActivePanel, on
   return (
     <>
       <div
-        className={`fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-20 md:hidden transition-opacity ${isMobileOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+        className={`fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-20 xl:hidden transition-opacity ${isMobileOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
         onClick={() => setIsMobileOpen(false)}
       />
       <aside className={`
         flex flex-col w-72 bg-slate-900 text-white p-5 h-full shadow-2xl border-r border-white/5
-        fixed md:relative inset-y-0 left-0 z-30
+        fixed xl:relative inset-y-0 left-0 z-30
         transform transition-transform duration-300 ease-out
         ${isMobileOpen ? 'translate-x-0' : '-translate-x-full'}
-        md:translate-x-0
+        xl:translate-x-0
         print:hidden
       `}>
         <div className="flex justify-between items-start mb-8 pt-2">
@@ -79,7 +79,7 @@ const Sidebar: React.FC<SidebarProps> = ({ user, activePanel, setActivePanel, on
             <h1 className="text-xl font-bold text-white tracking-tight leading-none">FARMACIA ELEAM</h1>
             <p className="text-sm font-medium text-brand-secondary mt-1">EL NAZARENO</p>
           </div>
-          <button onClick={() => setIsMobileOpen(false)} className="md:hidden text-slate-400 hover:text-white transition-colors" aria-label="Cerrar menú">
+          <button onClick={() => setIsMobileOpen(false)} className="xl:hidden text-slate-400 hover:text-white transition-colors" aria-label="Cerrar menú">
             <CloseIcon className="w-6 h-6" />
           </button>
         </div>

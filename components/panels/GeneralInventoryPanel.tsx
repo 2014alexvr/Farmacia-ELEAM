@@ -42,19 +42,42 @@ const GeneralInventoryPanel: React.FC<GeneralInventoryPanelProps> = ({ residentM
       const resident = residents.find(r => r.id === med.residentId);
       const residentName = resident ? resident.name : 'Desconocido';
 
+      // --- CÁLCULO DE STOCK VIRTUAL (REAL-TIME) ---
+      // Replicamos la lógica de proyección de consumo usada en el Dashboard y Fichas
+      let realStock = med.stock;
+      const dailyExpense = med.schedules.reduce((sum, s) => sum + (Number(s.quantity) || 0), 0);
+
+      if (dailyExpense > 0) {
+          const anchorDateStr = med.stockUpdatedAt || new Date().toISOString();
+          const anchorDate = new Date(anchorDateStr);
+          const today = new Date();
+          
+          // Normalizar fechas a media noche para cálculo exacto de días
+          anchorDate.setHours(0,0,0,0);
+          today.setHours(0,0,0,0);
+          
+          const diffTime = today.getTime() - anchorDate.getTime();
+          const daysElapsed = Math.max(0, Math.floor(diffTime / (1000 * 60 * 60 * 24)));
+          
+          const consumed = dailyExpense * daysElapsed;
+          // El stock no puede ser negativo
+          realStock = Math.max(0, med.stock - consumed);
+      }
+      // --------------------------------------------
+
       if (!map.has(key)) {
         map.set(key, {
           key,
           name: normalizedName,
           dose: normalizedDose,
-          totalStock: med.stock,
+          totalStock: realStock, // Usamos el stock calculado, no el estático de BD
           unit: med.stockUnit,
           residentCount: 1,
           residentNames: [residentName],
         });
       } else {
         const item = map.get(key)!;
-        item.totalStock += med.stock;
+        item.totalStock += realStock; // Sumamos el stock calculado
         
         // Avoid duplicate resident names for the same medication (e.g. multiple schedules)
         if (!item.residentNames.includes(residentName)) {
@@ -138,7 +161,7 @@ const GeneralInventoryPanel: React.FC<GeneralInventoryPanelProps> = ({ residentM
       <div className="mb-8">
         <h1 className="text-3xl font-extrabold text-slate-800 tracking-tight">Inventario General</h1>
         <p className="text-slate-500 mt-2 font-medium">
-          Listado consolidado de todos los medicamentos existentes en el sistema, sumando el stock de todos los residentes.
+          Listado consolidado de todos los medicamentos existentes en el sistema, sumando el stock de todos los residentes (Calculado en tiempo real).
         </p>
       </div>
 
@@ -181,7 +204,7 @@ const GeneralInventoryPanel: React.FC<GeneralInventoryPanelProps> = ({ residentM
                     onClick={() => handleSort('stock')}
                 >
                     <div className="flex items-center justify-center">
-                        Stock Total
+                        Stock Total (Real)
                         <SortIcon active={sortField === 'stock'} direction={sortDirection} />
                     </div>
                 </th>
@@ -201,7 +224,7 @@ const GeneralInventoryPanel: React.FC<GeneralInventoryPanelProps> = ({ residentM
                                 ? 'bg-red-100 text-red-600 border-red-200' 
                                 : 'bg-brand-light text-brand-primary border-brand-secondary/20'
                         }`}>
-                            {item.totalStock}
+                            {parseFloat(item.totalStock.toFixed(2))}
                         </span>
                     </td>
                     <td className="px-5 py-5 text-center text-slate-500 font-medium text-lg align-middle">{item.unit}</td>

@@ -356,7 +356,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ user, onLogout, users, setUsers
       case Panel.Residents: return <ResidentsPanel user={user} onSelectResident={handleSelectResident} residents={residents} onSaveResident={handleSaveResident} onDeleteResident={handleDeleteResident} onReorderResidents={()=>{}} />;
       case Panel.GeneralKit: return <GeneralKitPanel user={user} items={generalKitItems} onSaveItem={handleSaveGeneralItem} onDeleteItem={handleDeleteGeneralItem} onReorderItems={handleReorderGeneralItems} onImportList={handleImportGeneralKit} />;
       case Panel.GeneralInventory: return <GeneralInventoryPanel residentMedications={residentMedications} residents={residents} lowStockThreshold={lowStockThreshold} />;
-      case Panel.SummaryCesfam: return <SummaryCesfamPanel residents={residents} residentMedications={residentMedications} lowStockThreshold={lowStockThreshold} />;
+      case Panel.SummaryCesfam: return <SummaryCesfamPanel residents={residents} residentMedications={residentMedications} lowStockThreshold={lowStockThreshold} onSelectResident={handleSelectResident} />;
       case Panel.SummaryIndividualStock: return <SummaryIndividualStockPanel residents={residents} residentMedications={residentMedications} onSelectResident={handleSelectResident} user={user} threshold={lowStockThreshold} />;
       case Panel.AdminApp: return <AdminAppPanel currentUser={user} users={users} onSaveUser={async (u: any) => {
         const { error } = await supabase.from('app_users').upsert({
@@ -383,19 +383,39 @@ const MainLayout: React.FC<MainLayoutProps> = ({ user, onLogout, users, setUsers
     }
   };
 
+  // APP SHELL LAYOUT - CRITICAL FIX FOR MOBILE WIDTH
+  // Using explicit flex directions and w-full/h-full to prevent "zoom out" effects on mobile.
   return (
-    <div className="relative min-h-screen md:flex bg-surface-ground font-sans text-slate-600 print:block">
-      <Sidebar user={user} activePanel={activePanel} setActivePanel={setActivePanel} onLogout={onLogout} availablePanels={availablePanels} isMobileOpen={isSidebarOpen} setIsMobileOpen={setIsSidebarOpen} />
-      <div className="flex-1 flex flex-col w-full min-w-0">
-        <header className="md:hidden bg-white shadow-sm flex justify-between items-center p-4 sticky top-0 z-10 border-b border-slate-200">
+    <div className="flex flex-col xl:flex-row h-full w-full bg-surface-ground font-sans text-slate-600 print:block overflow-hidden">
+      
+      {/* Sidebar Component: It handles its own fixed/relative state */}
+      <Sidebar 
+        user={user} 
+        activePanel={activePanel} 
+        setActivePanel={setActivePanel} 
+        onLogout={onLogout} 
+        availablePanels={availablePanels} 
+        isMobileOpen={isSidebarOpen} 
+        setIsMobileOpen={setIsSidebarOpen} 
+      />
+
+      {/* Main Content Area */}
+      {/* flex-1 takes remaining space. min-w-0 prevents flex items from overflowing container */}
+      <div className="flex-1 flex flex-col min-w-0 h-full w-full relative">
+        
+        {/* Mobile Header */}
+        <header className="xl:hidden bg-white shadow-sm flex justify-between items-center p-4 sticky top-0 z-10 border-b border-slate-200 shrink-0">
             <button onClick={() => setIsSidebarOpen(true)} className="text-slate-600"><MenuIcon className="w-6 h-6" /></button>
-            <h1 className="text-lg font-bold text-slate-800">{activePanel}</h1>
+            <h1 className="text-lg font-bold text-slate-800 truncate px-2">{activePanel}</h1>
             <div className="w-6"></div>
         </header>
-        <main className="flex-1 p-3 md:p-10 w-full overflow-y-auto">
+
+        {/* Scrollable Panel Area */}
+        <main className="flex-1 overflow-y-auto p-3 xl:p-10 w-full custom-scrollbar">
           {renderPanel()}
         </main>
       </div>
+      
       {isLogoutModalOpen && <ConfirmLogoutModal onConfirm={onLogout} onCancel={() => setIsLogoutModalOpen(false)} />}
     </div>
   );
