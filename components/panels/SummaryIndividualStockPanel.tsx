@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { Resident, ResidentMedication, Provenance, User } from '../../types';
+import ZoomControls from '../ZoomControls';
 
 interface SummaryIndividualStockPanelProps {
   residents: Resident[];
@@ -33,6 +34,9 @@ const SummaryIndividualStockPanel: React.FC<SummaryIndividualStockPanelProps> = 
   
   const [sortField, setSortField] = useState<SortField>('stockDays');
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
+  
+  // ZOOM STATE - DEFAULT 50%
+  const [zoomLevel, setZoomLevel] = useState(0.5);
 
   // Helper function to calculate stock summary for a single resident
   // Includes VIRTUAL STOCK LOGIC to match other panels
@@ -145,100 +149,108 @@ const SummaryIndividualStockPanel: React.FC<SummaryIndividualStockPanelProps> = 
 
       {/* FORCE BRUTE: w-full max-w-full */}
       <div className="bg-white p-4 sm:p-6 rounded-3xl shadow-soft border border-slate-100 w-full max-w-full min-w-full overflow-hidden">
-        <div className="overflow-x-auto w-full custom-scrollbar">
-          <table className="w-full text-left border-collapse min-w-[800px]">
-            <thead className="bg-slate-50 border-b border-slate-100">
-              <tr>
-                <th 
-                    className="px-5 py-4 font-bold text-xs text-slate-400 uppercase tracking-wider rounded-tl-2xl cursor-pointer hover:bg-slate-100 transition-colors group select-none"
-                    onClick={() => handleSort('resident')}
-                >
-                    <div className="flex items-center">
-                        Residente
-                        <SortIcon active={sortField === 'resident'} direction={sortDirection} />
-                    </div>
-                </th>
-                <th className="px-5 py-4 font-bold text-xs text-slate-400 uppercase tracking-wider text-center">Medicamentos Asignados</th>
-                <th className="px-5 py-4 font-bold text-xs text-slate-400 uppercase tracking-wider">Medicamentos con Bajo Stock</th>
-                <th className="px-5 py-4 font-bold text-xs text-slate-400 uppercase tracking-wider">Procedencia</th>
-                <th 
-                    className="px-5 py-4 font-bold text-xs text-slate-400 uppercase tracking-wider text-center cursor-pointer hover:bg-slate-100 transition-colors group select-none"
-                    onClick={() => handleSort('stockDays')}
-                >
-                    <div className="flex items-center justify-center">
-                        Días de Stock (Mín)
-                        <SortIcon active={sortField === 'stockDays'} direction={sortDirection} />
-                    </div>
-                </th>
-                <th className="px-5 py-4 font-bold text-xs text-slate-400 uppercase tracking-wider text-center rounded-tr-2xl">Umbral Mínimo</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {sortedResidents.map((resident) => {
-                const { lowStockItems, medicationCount } = resident.summary;
-                const hasLowStock = lowStockItems.length > 0;
-                const hasNoMeds = medicationCount === 0;
+        
+        {/* TOOLBAR: ZOOM */}
+        <div className="flex justify-end mb-4">
+            <ZoomControls zoom={zoomLevel} setZoom={setZoomLevel} />
+        </div>
 
-                return (
-                  <tr key={resident.id} className="hover:bg-slate-50 transition-colors">
-                    <td className="px-5 py-5 font-bold text-lg text-slate-800 align-top">
-                      <button onClick={() => onSelectResident(resident)} className="text-left text-brand-secondary hover:underline">
-                        {resident.name}
-                      </button>
-                    </td>
-                    <td className={`px-5 py-5 text-center font-bold text-lg align-top ${hasNoMeds ? 'text-slate-300' : 'text-slate-700'}`}>
-                      {medicationCount}
-                    </td>
-                    <td className="px-5 py-5 text-slate-700 align-top">
-                      {hasLowStock ? (
-                        <div className="space-y-2">
-                          {lowStockItems.map((item, i) => (
-                            <p key={i} className="text-sm font-bold text-red-600 flex items-center gap-2">
-                                <span className="w-2 h-2 rounded-full bg-red-500 block"></span>
-                                {item.name}
-                            </p>
-                          ))}
+        <div className="overflow-x-auto w-full custom-scrollbar border border-slate-100 rounded-2xl">
+          <div style={{ zoom: zoomLevel }}>
+            <table className="w-full text-left border-collapse min-w-[800px]">
+                <thead className="bg-slate-50 border-b border-slate-100">
+                <tr>
+                    <th 
+                        className="px-5 py-4 font-bold text-xs text-slate-400 uppercase tracking-wider rounded-tl-2xl cursor-pointer hover:bg-slate-100 transition-colors group select-none"
+                        onClick={() => handleSort('resident')}
+                    >
+                        <div className="flex items-center">
+                            Residente
+                            <SortIcon active={sortField === 'resident'} direction={sortDirection} />
                         </div>
-                      ) : (
-                        <span className={`text-lg font-medium ${hasNoMeds ? 'text-slate-300' : 'text-emerald-600'}`}>Ninguno</span>
-                      )}
-                    </td>
-                    <td className="px-5 py-5 align-top">
+                    </th>
+                    <th className="px-5 py-4 font-bold text-xs text-slate-400 uppercase tracking-wider text-center">Medicamentos Asignados</th>
+                    <th className="px-5 py-4 font-bold text-xs text-slate-400 uppercase tracking-wider">Medicamentos con Bajo Stock</th>
+                    <th className="px-5 py-4 font-bold text-xs text-slate-400 uppercase tracking-wider">Procedencia</th>
+                    <th 
+                        className="px-5 py-4 font-bold text-xs text-slate-400 uppercase tracking-wider text-center cursor-pointer hover:bg-slate-100 transition-colors group select-none"
+                        onClick={() => handleSort('stockDays')}
+                    >
+                        <div className="flex items-center justify-center">
+                            Días de Stock (Mín)
+                            <SortIcon active={sortField === 'stockDays'} direction={sortDirection} />
+                        </div>
+                    </th>
+                    <th className="px-5 py-4 font-bold text-xs text-slate-400 uppercase tracking-wider text-center rounded-tr-2xl">Umbral Mínimo</th>
+                </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                {sortedResidents.map((resident) => {
+                    const { lowStockItems, medicationCount } = resident.summary;
+                    const hasLowStock = lowStockItems.length > 0;
+                    const hasNoMeds = medicationCount === 0;
+
+                    return (
+                    <tr key={resident.id} className="hover:bg-slate-50 transition-colors">
+                        <td className="px-5 py-5 font-bold text-lg text-slate-800 align-top">
+                        <button onClick={() => onSelectResident(resident)} className="text-left text-brand-secondary hover:underline">
+                            {resident.name}
+                        </button>
+                        </td>
+                        <td className={`px-5 py-5 text-center font-bold text-lg align-top ${hasNoMeds ? 'text-slate-300' : 'text-slate-700'}`}>
+                        {medicationCount}
+                        </td>
+                        <td className="px-5 py-5 text-slate-700 align-top">
                         {hasLowStock ? (
                             <div className="space-y-2">
-                                {lowStockItems.map((item, i) => (
-                                    <div key={i}>
-                                        <span className={`inline-block px-3 py-1 text-xs font-bold uppercase tracking-wide rounded-full ${provenanceStyles[item.provenance] || 'bg-slate-100 text-slate-600 border border-slate-200'}`}>
-                                            {item.provenance}
-                                        </span>
-                                    </div>
-                                ))}
+                            {lowStockItems.map((item, i) => (
+                                <p key={i} className="text-sm font-bold text-red-600 flex items-center gap-2">
+                                    <span className="w-2 h-2 rounded-full bg-red-500 block"></span>
+                                    {item.name}
+                                </p>
+                            ))}
                             </div>
                         ) : (
-                           <span className="text-slate-300">N/A</span>
+                            <span className={`text-lg font-medium ${hasNoMeds ? 'text-slate-300' : 'text-emerald-600'}`}>Ninguno</span>
                         )}
-                    </td>
-                    <td className="px-5 py-5 text-center align-top">
-                      {hasLowStock ? (
-                        <div className="space-y-2">
-                          {lowStockItems.map((item, i) => (
-                            <p key={i} className="font-extrabold text-red-600 text-lg border border-red-100 bg-red-50 rounded-lg px-2 inline-block shadow-sm">
-                                {item.stockDays} días
-                            </p>
-                          ))}
-                        </div>
-                      ) : (
-                        <span className="text-slate-300">N/A</span>
-                      )}
-                    </td>
-                    <td className="px-5 py-5 text-center text-slate-400 font-medium text-lg align-top">
-                      {hasNoMeds ? 'N/A' : `< ${threshold} días`}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                        </td>
+                        <td className="px-5 py-5 align-top">
+                            {hasLowStock ? (
+                                <div className="space-y-2">
+                                    {lowStockItems.map((item, i) => (
+                                        <div key={i}>
+                                            <span className={`inline-block px-3 py-1 text-xs font-bold uppercase tracking-wide rounded-full ${provenanceStyles[item.provenance] || 'bg-slate-100 text-slate-600 border border-slate-200'}`}>
+                                                {item.provenance}
+                                            </span>
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : (
+                            <span className="text-slate-300">N/A</span>
+                            )}
+                        </td>
+                        <td className="px-5 py-5 text-center align-top">
+                        {hasLowStock ? (
+                            <div className="space-y-2">
+                            {lowStockItems.map((item, i) => (
+                                <p key={i} className="font-extrabold text-red-600 text-lg border border-red-100 bg-red-50 rounded-lg px-2 inline-block shadow-sm">
+                                    {item.stockDays} días
+                                </p>
+                            ))}
+                            </div>
+                        ) : (
+                            <span className="text-slate-300">N/A</span>
+                        )}
+                        </td>
+                        <td className="px-5 py-5 text-center text-slate-400 font-medium text-lg align-top">
+                        {hasNoMeds ? 'N/A' : `< ${threshold} días`}
+                        </td>
+                    </tr>
+                    );
+                })}
+                </tbody>
+            </table>
+          </div>
         </div>
       </div>
     </div>

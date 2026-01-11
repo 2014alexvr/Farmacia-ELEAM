@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { ResidentMedication, Resident } from '../../types';
 import UsersIcon from '../icons/UsersIcon';
 import CloseIcon from '../icons/CloseIcon';
+import ZoomControls from '../ZoomControls';
 
 interface GeneralInventoryPanelProps {
   residentMedications: ResidentMedication[];
@@ -26,6 +27,9 @@ const GeneralInventoryPanel: React.FC<GeneralInventoryPanelProps> = ({ residentM
   const [activePopoverKey, setActivePopoverKey] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   
+  // ZOOM STATE - DEFAULT 50%
+  const [zoomLevel, setZoomLevel] = useState(0.5);
+  
   // Estados para el ordenamiento
   const [sortField, setSortField] = useState<SortField>('name');
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
@@ -43,7 +47,6 @@ const GeneralInventoryPanel: React.FC<GeneralInventoryPanelProps> = ({ residentM
       const residentName = resident ? resident.name : 'Desconocido';
 
       // --- CÁLCULO DE STOCK VIRTUAL (REAL-TIME) ---
-      // Replicamos la lógica de proyección de consumo usada en el Dashboard y Fichas
       let realStock = med.stock;
       const dailyExpense = med.schedules.reduce((sum, s) => sum + (Number(s.quantity) || 0), 0);
 
@@ -52,7 +55,6 @@ const GeneralInventoryPanel: React.FC<GeneralInventoryPanelProps> = ({ residentM
           const anchorDate = new Date(anchorDateStr);
           const today = new Date();
           
-          // Normalizar fechas a media noche para cálculo exacto de días
           anchorDate.setHours(0,0,0,0);
           today.setHours(0,0,0,0);
           
@@ -60,26 +62,23 @@ const GeneralInventoryPanel: React.FC<GeneralInventoryPanelProps> = ({ residentM
           const daysElapsed = Math.max(0, Math.floor(diffTime / (1000 * 60 * 60 * 24)));
           
           const consumed = dailyExpense * daysElapsed;
-          // El stock no puede ser negativo
           realStock = Math.max(0, med.stock - consumed);
       }
-      // --------------------------------------------
 
       if (!map.has(key)) {
         map.set(key, {
           key,
           name: normalizedName,
           dose: normalizedDose,
-          totalStock: realStock, // Usamos el stock calculado, no el estático de BD
+          totalStock: realStock,
           unit: med.stockUnit,
           residentCount: 1,
           residentNames: [residentName],
         });
       } else {
         const item = map.get(key)!;
-        item.totalStock += realStock; // Sumamos el stock calculado
+        item.totalStock += realStock;
         
-        // Avoid duplicate resident names for the same medication (e.g. multiple schedules)
         if (!item.residentNames.includes(residentName)) {
             item.residentNames.push(residentName);
             item.residentCount += 1;
@@ -115,10 +114,8 @@ const GeneralInventoryPanel: React.FC<GeneralInventoryPanelProps> = ({ residentM
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
-      // Si ya estamos ordenando por esta columna, invertimos la dirección
       setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
     } else {
-      // Si es una columna nueva, ordenamos ascendente por defecto
       setSortField(field);
       setSortDirection('asc');
     }
@@ -132,10 +129,8 @@ const GeneralInventoryPanel: React.FC<GeneralInventoryPanelProps> = ({ residentM
     }
   };
 
-  // Componente interno para el icono de ordenamiento
   const SortIcon = ({ active, direction }: { active: boolean; direction: SortDirection }) => (
     <span className={`ml-2 inline-flex flex-col space-y-[2px] ${active ? 'text-brand-primary' : 'text-slate-300'}`}>
-        {/* Flecha Arriba */}
         <svg 
             xmlns="http://www.w3.org/2000/svg" 
             className={`w-2 h-2 ${active && direction === 'asc' ? 'opacity-100' : 'opacity-40'}`} 
@@ -144,7 +139,6 @@ const GeneralInventoryPanel: React.FC<GeneralInventoryPanelProps> = ({ residentM
         >
             <path d="M12 4l-8 8h16l-8-8z" />
         </svg>
-        {/* Flecha Abajo */}
         <svg 
             xmlns="http://www.w3.org/2000/svg" 
             className={`w-2 h-2 ${active && direction === 'desc' ? 'opacity-100' : 'opacity-40'}`} 
@@ -167,9 +161,9 @@ const GeneralInventoryPanel: React.FC<GeneralInventoryPanelProps> = ({ residentM
 
       <div className="bg-white p-6 rounded-3xl shadow-soft border border-slate-100 w-full max-w-full">
         
-        {/* Search Bar */}
-        <div className="mb-6">
-            <div className="relative max-w-md">
+        {/* Search Bar & Zoom */}
+        <div className="mb-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <div className="relative max-w-md w-full">
                 <input
                     type="text"
                     placeholder="Buscar medicamento por nombre..."
@@ -183,102 +177,108 @@ const GeneralInventoryPanel: React.FC<GeneralInventoryPanelProps> = ({ residentM
                     </svg>
                 </div>
             </div>
+            {/* ZOOM CONTROLS */}
+            <div className="self-end sm:self-auto">
+               <ZoomControls zoom={zoomLevel} setZoom={setZoomLevel} />
+            </div>
         </div>
 
-        <div className="overflow-x-auto pb-20 custom-scrollbar w-full"> 
-          <table className="w-full text-left border-collapse">
-            <thead className="bg-slate-50 border-b border-slate-100">
-              <tr>
-                <th 
-                    className="px-5 py-4 font-bold text-xs text-slate-400 uppercase tracking-wider rounded-tl-2xl cursor-pointer hover:bg-slate-100 transition-colors select-none group"
-                    onClick={() => handleSort('name')}
-                >
-                    <div className="flex items-center">
-                        Medicamento
-                        <SortIcon active={sortField === 'name'} direction={sortDirection} />
-                    </div>
-                </th>
-                <th className="px-5 py-4 font-bold text-xs text-slate-400 uppercase tracking-wider">Dosis</th>
-                <th 
-                    className="px-5 py-4 font-bold text-xs text-slate-400 uppercase tracking-wider text-center cursor-pointer hover:bg-slate-100 transition-colors select-none group"
-                    onClick={() => handleSort('stock')}
-                >
-                    <div className="flex items-center justify-center">
-                        Stock Total (Real)
-                        <SortIcon active={sortField === 'stock'} direction={sortDirection} />
-                    </div>
-                </th>
-                <th className="px-5 py-4 font-bold text-xs text-slate-400 uppercase tracking-wider text-center">Unidad</th>
-                <th className="px-5 py-4 font-bold text-xs text-slate-400 uppercase tracking-wider text-center rounded-tr-2xl">N° Residentes</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {filteredAndSortedInventory.length > 0 ? (
-                filteredAndSortedInventory.map((item) => (
-                  <tr key={item.key} className="hover:bg-slate-50 transition-colors group">
-                    <td className="px-5 py-5 font-bold text-lg text-slate-800 align-middle">{item.name}</td>
-                    <td className="px-5 py-5 text-slate-600 font-medium text-lg align-middle">{item.dose}</td>
-                    <td className="px-5 py-5 text-center align-middle">
-                        <span className={`font-bold text-lg px-4 py-1.5 rounded-lg border shadow-sm inline-block min-w-[3.5rem] transition-colors ${
-                            item.totalStock < lowStockThreshold 
-                                ? 'bg-red-100 text-red-600 border-red-200' 
-                                : 'bg-brand-light text-brand-primary border-brand-secondary/20'
-                        }`}>
-                            {parseFloat(item.totalStock.toFixed(2))}
-                        </span>
-                    </td>
-                    <td className="px-5 py-5 text-center text-slate-500 font-medium text-lg align-middle">{item.unit}</td>
-                    <td className="px-5 py-5 text-center align-middle relative">
-                      <button 
-                        onClick={(e) => { e.stopPropagation(); togglePopover(item.key); }}
-                        className="inline-flex items-center justify-center w-10 h-10 bg-blue-50 text-blue-600 font-bold rounded-full hover:bg-blue-100 hover:scale-110 transition-all shadow-sm border border-blue-100"
-                        title="Ver lista de residentes"
-                      >
-                         {item.residentCount}
-                      </button>
-                      
-                      {/* Popover Menu */}
-                      {activePopoverKey === item.key && (
-                        <div 
-                            className="absolute right-4 top-14 w-72 bg-white rounded-2xl shadow-xl border border-slate-100 z-50 animate-scale-in overflow-hidden"
-                            onClick={(e) => e.stopPropagation()}
-                        >
-                            <div className="flex justify-between items-center p-3 border-b border-slate-100 bg-slate-50">
-                                <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2">
-                                    <UsersIcon className="w-3 h-3" />
-                                    UTILIZADO POR:
-                                </h4>
-                                <button onClick={() => setActivePopoverKey(null)} className="text-slate-400 hover:text-red-500 transition-colors p-1 rounded-full hover:bg-slate-200">
-                                    <CloseIcon className="w-4 h-4" />
-                                </button>
-                            </div>
-                            <div className="p-2 max-h-60 overflow-y-auto custom-scrollbar">
-                                <ul className="space-y-1">
-                                    {item.residentNames.map((name, idx) => (
-                                        <li key={idx} className="text-xs font-bold text-slate-600 px-3 py-2 hover:bg-slate-50 rounded-xl transition-colors flex items-center">
-                                            <div className="w-1.5 h-1.5 rounded-full bg-brand-secondary mr-2 flex-shrink-0"></div>
-                                            {name}
-                                        </li>
-                                    ))}
-                                </ul>
-                            </div>
-                        </div>
-                      )}
-                    </td>
-                  </tr>
-                ))
-              ) : (
+        <div className="overflow-x-auto pb-20 custom-scrollbar w-full border border-slate-100 rounded-2xl"> 
+          <div style={{ zoom: zoomLevel }}>
+            <table className="w-full text-left border-collapse">
+                <thead className="bg-slate-50 border-b border-slate-100">
                 <tr>
-                  <td colSpan={5} className="text-center p-12">
-                    <div className="flex flex-col items-center justify-center text-slate-400">
-                        <p className="text-lg font-medium italic">No se encontraron medicamentos.</p>
-                        {searchTerm && <p className="text-sm mt-1">Pruebe con otro nombre.</p>}
-                    </div>
-                  </td>
+                    <th 
+                        className="px-5 py-4 font-bold text-xs text-slate-400 uppercase tracking-wider rounded-tl-2xl cursor-pointer hover:bg-slate-100 transition-colors select-none group"
+                        onClick={() => handleSort('name')}
+                    >
+                        <div className="flex items-center">
+                            Medicamento
+                            <SortIcon active={sortField === 'name'} direction={sortDirection} />
+                        </div>
+                    </th>
+                    <th className="px-5 py-4 font-bold text-xs text-slate-400 uppercase tracking-wider">Dosis</th>
+                    <th 
+                        className="px-5 py-4 font-bold text-xs text-slate-400 uppercase tracking-wider text-center cursor-pointer hover:bg-slate-100 transition-colors select-none group"
+                        onClick={() => handleSort('stock')}
+                    >
+                        <div className="flex items-center justify-center">
+                            Stock Total (Real)
+                            <SortIcon active={sortField === 'stock'} direction={sortDirection} />
+                        </div>
+                    </th>
+                    <th className="px-5 py-4 font-bold text-xs text-slate-400 uppercase tracking-wider text-center">Unidad</th>
+                    <th className="px-5 py-4 font-bold text-xs text-slate-400 uppercase tracking-wider text-center rounded-tr-2xl">N° Residentes</th>
                 </tr>
-              )}
-            </tbody>
-          </table>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                {filteredAndSortedInventory.length > 0 ? (
+                    filteredAndSortedInventory.map((item) => (
+                    <tr key={item.key} className="hover:bg-slate-50 transition-colors group">
+                        <td className="px-5 py-5 font-bold text-lg text-slate-800 align-middle">{item.name}</td>
+                        <td className="px-5 py-5 text-slate-600 font-medium text-lg align-middle">{item.dose}</td>
+                        <td className="px-5 py-5 text-center align-middle">
+                            <span className={`font-bold text-lg px-4 py-1.5 rounded-lg border shadow-sm inline-block min-w-[3.5rem] transition-colors ${
+                                item.totalStock < lowStockThreshold 
+                                    ? 'bg-red-100 text-red-600 border-red-200' 
+                                    : 'bg-brand-light text-brand-primary border-brand-secondary/20'
+                            }`}>
+                                {parseFloat(item.totalStock.toFixed(2))}
+                            </span>
+                        </td>
+                        <td className="px-5 py-5 text-center text-slate-500 font-medium text-lg align-middle">{item.unit}</td>
+                        <td className="px-5 py-5 text-center align-middle relative">
+                        <button 
+                            onClick={(e) => { e.stopPropagation(); togglePopover(item.key); }}
+                            className="inline-flex items-center justify-center w-10 h-10 bg-blue-50 text-blue-600 font-bold rounded-full hover:bg-blue-100 hover:scale-110 transition-all shadow-sm border border-blue-100"
+                            title="Ver lista de residentes"
+                        >
+                            {item.residentCount}
+                        </button>
+                        
+                        {/* Popover Menu */}
+                        {activePopoverKey === item.key && (
+                            <div 
+                                className="absolute right-4 top-14 w-72 bg-white rounded-2xl shadow-xl border border-slate-100 z-50 animate-scale-in overflow-hidden"
+                                onClick={(e) => e.stopPropagation()}
+                            >
+                                <div className="flex justify-between items-center p-3 border-b border-slate-100 bg-slate-50">
+                                    <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2">
+                                        <UsersIcon className="w-3 h-3" />
+                                        UTILIZADO POR:
+                                    </h4>
+                                    <button onClick={() => setActivePopoverKey(null)} className="text-slate-400 hover:text-red-500 transition-colors p-1 rounded-full hover:bg-slate-200">
+                                        <CloseIcon className="w-4 h-4" />
+                                    </button>
+                                </div>
+                                <div className="p-2 max-h-60 overflow-y-auto custom-scrollbar">
+                                    <ul className="space-y-1">
+                                        {item.residentNames.map((name, idx) => (
+                                            <li key={idx} className="text-xs font-bold text-slate-600 px-3 py-2 hover:bg-slate-50 rounded-xl transition-colors flex items-center">
+                                                <div className="w-1.5 h-1.5 rounded-full bg-brand-secondary mr-2 flex-shrink-0"></div>
+                                                {name}
+                                            </li>
+                                        ))}
+                                    </ul>
+                                </div>
+                            </div>
+                        )}
+                        </td>
+                    </tr>
+                    ))
+                ) : (
+                    <tr>
+                    <td colSpan={5} className="text-center p-12">
+                        <div className="flex flex-col items-center justify-center text-slate-400">
+                            <p className="text-lg font-medium italic">No se encontraron medicamentos.</p>
+                            {searchTerm && <p className="text-sm mt-1">Pruebe con otro nombre.</p>}
+                        </div>
+                    </td>
+                    </tr>
+                )}
+                </tbody>
+            </table>
+          </div>
         </div>
       </div>
     </div>

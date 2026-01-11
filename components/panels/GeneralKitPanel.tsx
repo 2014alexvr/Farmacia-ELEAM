@@ -8,6 +8,7 @@ import FirstAidIcon from '../icons/FirstAidIcon';
 import ChevronUpIcon from '../icons/ChevronUpIcon';
 import ChevronDownIcon from '../icons/ChevronDownIcon';
 import UploadIcon from '../icons/UploadIcon';
+import ZoomControls from '../ZoomControls';
 
 interface GeneralKitPanelProps {
   user: User;
@@ -26,6 +27,9 @@ const GeneralKitPanel: React.FC<GeneralKitPanelProps> = ({ user, items, onSaveIt
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [itemToEdit, setItemToEdit] = useState<GeneralMedication | undefined>(undefined);
   const [itemToDelete, setItemToDelete] = useState<GeneralMedication | null>(null);
+  
+  // ZOOM STATE - DEFAULT 50%
+  const [zoomLevel, setZoomLevel] = useState(0.5);
 
   // Hidden input ref for file selection
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -35,8 +39,6 @@ const GeneralKitPanel: React.FC<GeneralKitPanelProps> = ({ user, items, onSaveIt
 
   const canModify = user.permissions === 'Total' || user.permissions === 'Modificar';
   
-  // Show arrows as long as we are not searching. 
-  // If sorted by Name/Stock, clicking an arrow will switch to Manual sort.
   const canReorder = canModify && !searchTerm;
 
   const filteredAndSortedItems = useMemo(() => {
@@ -62,7 +64,6 @@ const GeneralKitPanel: React.FC<GeneralKitPanelProps> = ({ user, items, onSaveIt
   }, [items, searchTerm, sortField, sortDirection]);
 
   const handleOpenAdd = () => {
-    console.log("Abriendo modal para nuevo ítem...");
     setItemToEdit(undefined);
     setIsModalOpen(true);
   };
@@ -93,7 +94,6 @@ const GeneralKitPanel: React.FC<GeneralKitPanelProps> = ({ user, items, onSaveIt
   };
 
   const handleImportClick = () => {
-      // Trigger the hidden file input
       if (fileInputRef.current) {
           fileInputRef.current.click();
       }
@@ -103,12 +103,10 @@ const GeneralKitPanel: React.FC<GeneralKitPanelProps> = ({ user, items, onSaveIt
       if (e.target.files && e.target.files[0]) {
           const file = e.target.files[0];
           try {
-              // Pass the real file to the parent handler
               await onImportList(file);
           } catch (e: any) {
               alert("Error al importar lista: " + (e.message || "Error desconocido."));
           } finally {
-              // Reset input so the same file can be selected again if needed
               if (fileInputRef.current) fileInputRef.current.value = '';
           }
       }
@@ -127,10 +125,7 @@ const GeneralKitPanel: React.FC<GeneralKitPanelProps> = ({ user, items, onSaveIt
       newItems[targetIndex] = temp;
 
       const itemsWithOrder = newItems.map((item, idx) => ({ ...item, display_order: idx }));
-      
-      // Automatically switch to manual sort to reflect the new custom order
       setSortField('manual');
-      
       await onReorderItems(itemsWithOrder);
   };
 
@@ -151,8 +146,7 @@ const GeneralKitPanel: React.FC<GeneralKitPanelProps> = ({ user, items, onSaveIt
   );
 
   return (
-    <div className="animate-fade-in-down pb-20">
-      {/* Hidden File Input - Updated to accept Excel/CSV */}
+    <div className="animate-fade-in-down pb-20 w-full max-w-full">
       <input 
         type="file" 
         ref={fileInputRef} 
@@ -192,8 +186,8 @@ const GeneralKitPanel: React.FC<GeneralKitPanelProps> = ({ user, items, onSaveIt
         </div>
       </div>
 
-      <div className="bg-white p-4 sm:p-6 rounded-3xl shadow-soft border border-slate-100">
-         <div className="mb-6 flex flex-col sm:flex-row justify-between items-center gap-4">
+      <div className="bg-white p-4 sm:p-6 rounded-3xl shadow-soft border border-slate-100 w-full max-w-full">
+         <div className="mb-6 flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4">
             <input
                 type="text"
                 placeholder="Buscar en botiquín..."
@@ -202,128 +196,135 @@ const GeneralKitPanel: React.FC<GeneralKitPanelProps> = ({ user, items, onSaveIt
                 className="w-full max-w-md px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl text-slate-700 font-medium focus:ring-2 focus:ring-brand-primary transition-all shadow-sm"
             />
             
-            {/* Sorting Controls */}
-            <div className="flex items-center gap-2">
-                <span className="text-xs font-bold text-slate-400 uppercase">Orden:</span>
-                <select 
-                    value={sortField} 
-                    onChange={(e) => setSortField(e.target.value as SortField)}
-                    className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-600 text-sm font-bold focus:ring-2 focus:ring-brand-primary outline-none cursor-pointer"
-                >
-                    <option value="manual">Manual</option>
-                    <option value="name">Alfabético</option>
-                    <option value="stock">Stock</option>
-                </select>
-                {sortField !== 'manual' && (
-                    <button 
-                        onClick={() => setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc')}
-                        className="p-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-500 hover:text-brand-primary"
+            <div className="flex flex-wrap items-center gap-3 w-full xl:w-auto">
+                <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-slate-400 uppercase hidden sm:inline">Orden:</span>
+                    <select 
+                        value={sortField} 
+                        onChange={(e) => setSortField(e.target.value as SortField)}
+                        className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-600 text-sm font-bold focus:ring-2 focus:ring-brand-primary outline-none cursor-pointer"
                     >
-                        {sortDirection === 'asc' ? <ChevronUpIcon className="w-4 h-4" /> : <ChevronDownIcon className="w-4 h-4" />}
-                    </button>
-                )}
+                        <option value="manual">Manual</option>
+                        <option value="name">Alfabético</option>
+                        <option value="stock">Stock</option>
+                    </select>
+                    {sortField !== 'manual' && (
+                        <button 
+                            onClick={() => setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc')}
+                            className="p-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-500 hover:text-brand-primary"
+                        >
+                            {sortDirection === 'asc' ? <ChevronUpIcon className="w-4 h-4" /> : <ChevronDownIcon className="w-4 h-4" />}
+                        </button>
+                    )}
+                </div>
+                
+                {/* ZOOM CONTROLS */}
+                <ZoomControls zoom={zoomLevel} setZoom={setZoomLevel} />
             </div>
         </div>
 
-        <div className="overflow-x-auto custom-scrollbar">
-            <table className="w-full text-left border-collapse min-w-[600px]">
-                <thead className="bg-slate-50">
-                    <tr>
-                        {canReorder && <th className="px-2 py-4 font-bold text-xs text-slate-400 uppercase tracking-wider rounded-tl-2xl text-center w-16">#</th>}
-                        <th 
-                            onClick={() => handleHeaderSort('name')}
-                            className={`px-5 py-4 font-bold text-xs text-slate-400 uppercase tracking-wider cursor-pointer hover:bg-slate-100 transition-colors select-none group ${!canReorder ? 'rounded-tl-2xl' : ''}`}
-                        >
-                            <div className="flex items-center">
-                                Nombre
-                                <SortIcon active={sortField === 'name'} direction={sortDirection} />
-                            </div>
-                        </th>
-                        <th className="px-5 py-4 font-bold text-xs text-slate-400 uppercase tracking-wider">Formato</th>
-                        <th 
-                            onClick={() => handleHeaderSort('stock')}
-                            className="px-5 py-4 font-bold text-xs text-slate-400 uppercase tracking-wider text-center cursor-pointer hover:bg-slate-100 transition-colors select-none group"
-                        >
-                            <div className="flex items-center justify-center">
-                                Stock
-                                <SortIcon active={sortField === 'stock'} direction={sortDirection} />
-                            </div>
-                        </th>
-                        <th className="px-5 py-4 font-bold text-xs text-slate-400 uppercase tracking-wider">Procedencia</th>
-                        {canModify && <th className="px-5 py-4 font-bold text-xs text-slate-400 uppercase tracking-wider text-right rounded-tr-2xl">Acciones</th>}
-                    </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                    {filteredAndSortedItems.length > 0 ? (
-                        filteredAndSortedItems.map((item, index) => {
-                            const isFirst = index === 0;
-                            const isLast = index === filteredAndSortedItems.length - 1;
-                            
-                            return (
-                                <tr key={item.id || `item-${index}`} className="hover:bg-slate-50 transition-colors group">
-                                    {canReorder && (
-                                        <td className="px-2 py-4 align-middle text-center">
-                                            <div className="flex flex-col items-center gap-1 opacity-70 group-hover:opacity-100 transition-opacity">
-                                                <button 
-                                                    onClick={(e) => { e.stopPropagation(); moveItem(index, 'up'); }}
-                                                    disabled={isFirst}
-                                                    className={`p-1.5 rounded-lg transition-colors ${isFirst ? 'text-slate-300 cursor-not-allowed' : 'text-slate-500 hover:bg-white hover:text-brand-primary hover:shadow-sm border border-transparent hover:border-slate-200'}`}
-                                                >
-                                                    <ChevronUpIcon className="w-6 h-6" />
-                                                </button>
-                                                <button 
-                                                    onClick={(e) => { e.stopPropagation(); moveItem(index, 'down'); }}
-                                                    disabled={isLast}
-                                                    className={`p-1.5 rounded-lg transition-colors ${isLast ? 'text-slate-300 cursor-not-allowed' : 'text-slate-500 hover:bg-white hover:text-brand-primary hover:shadow-sm border border-transparent hover:border-slate-200'}`}
-                                                >
-                                                    <ChevronDownIcon className="w-6 h-6" />
-                                                </button>
-                                            </div>
-                                        </td>
-                                    )}
-                                    <td className="px-5 py-4 font-bold text-slate-800 align-middle">
-                                        {canModify ? (
-                                            <button 
-                                                onClick={() => handleOpenEdit(item)}
-                                                className="text-left hover:text-brand-primary hover:underline transition-colors decoration-2 underline-offset-2"
-                                                title="Editar ítem"
-                                            >
-                                                {item.nombre_medicamento}
-                                            </button>
-                                        ) : (
-                                            item.nombre_medicamento
-                                        )}
-                                    </td>
-                                    <td className="px-5 py-4 text-slate-600 font-medium align-middle">{item.formato}</td>
-                                    <td className="px-5 py-4 text-center align-middle">
-                                        <div className="flex items-center justify-center">
-                                            <span className="inline-flex items-baseline gap-1.5 px-3 py-1 bg-brand-light text-brand-primary font-bold rounded-lg border border-brand-secondary/10">
-                                                <span className="text-lg">{item.cantidad_total}</span>
-                                                <span className="text-xs font-extrabold uppercase ml-1 opacity-90">{item.unidad || 'Comp'}</span>
-                                            </span>
-                                        </div>
-                                    </td>
-                                    <td className="px-5 py-4 text-slate-500 text-sm align-middle">{item.procedencia}</td>
-                                    {canModify && (
-                                        <td className="px-5 py-4 text-right align-middle">
-                                            <div className="flex items-center justify-end gap-1">
-                                                <button onClick={() => handleOpenEdit(item)} className="p-2 text-slate-400 hover:text-brand-primary hover:bg-white rounded-lg transition-colors"><PencilIcon className="w-4 h-4" /></button>
-                                                <button onClick={() => setItemToDelete(item)} className="p-2 text-slate-400 hover:text-red-500 hover:bg-white rounded-lg transition-colors"><TrashIcon className="w-4 h-4" /></button>
-                                            </div>
-                                        </td>
-                                    )}
-                                </tr>
-                            );
-                        })
-                    ) : (
+        <div className="overflow-x-auto custom-scrollbar w-full border border-slate-100 rounded-2xl">
+            <div style={{ zoom: zoomLevel }}>
+                <table className="w-full text-left border-collapse min-w-[600px]">
+                    {/* ... table content remains same ... */}
+                    <thead className="bg-slate-50">
                         <tr>
-                            <td colSpan={canReorder ? 6 : 5} className="text-center p-12 text-slate-400 italic">
-                                {items.length === 0 ? "El botiquín está vacío. Use el botón superior para cargar los datos." : "No se encontraron resultados para su búsqueda."}
-                            </td>
+                            {canReorder && <th className="px-2 py-4 font-bold text-xs text-slate-400 uppercase tracking-wider rounded-tl-2xl text-center w-16">#</th>}
+                            <th 
+                                onClick={() => handleHeaderSort('name')}
+                                className={`px-5 py-4 font-bold text-xs text-slate-400 uppercase tracking-wider cursor-pointer hover:bg-slate-100 transition-colors select-none group ${!canReorder ? 'rounded-tl-2xl' : ''}`}
+                            >
+                                <div className="flex items-center">
+                                    Nombre
+                                    <SortIcon active={sortField === 'name'} direction={sortDirection} />
+                                </div>
+                            </th>
+                            <th className="px-5 py-4 font-bold text-xs text-slate-400 uppercase tracking-wider">Formato</th>
+                            <th 
+                                onClick={() => handleHeaderSort('stock')}
+                                className="px-5 py-4 font-bold text-xs text-slate-400 uppercase tracking-wider text-center cursor-pointer hover:bg-slate-100 transition-colors select-none group"
+                            >
+                                <div className="flex items-center justify-center">
+                                    Stock
+                                    <SortIcon active={sortField === 'stock'} direction={sortDirection} />
+                                </div>
+                            </th>
+                            <th className="px-5 py-4 font-bold text-xs text-slate-400 uppercase tracking-wider">Procedencia</th>
+                            {canModify && <th className="px-5 py-4 font-bold text-xs text-slate-400 uppercase tracking-wider text-right rounded-tr-2xl">Acciones</th>}
                         </tr>
-                    )}
-                </tbody>
-            </table>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                        {filteredAndSortedItems.length > 0 ? (
+                            filteredAndSortedItems.map((item, index) => {
+                                const isFirst = index === 0;
+                                const isLast = index === filteredAndSortedItems.length - 1;
+                                
+                                return (
+                                    <tr key={item.id || `item-${index}`} className="hover:bg-slate-50 transition-colors group">
+                                        {canReorder && (
+                                            <td className="px-2 py-4 align-middle text-center">
+                                                <div className="flex flex-col items-center gap-1 opacity-70 group-hover:opacity-100 transition-opacity">
+                                                    <button 
+                                                        onClick={(e) => { e.stopPropagation(); moveItem(index, 'up'); }}
+                                                        disabled={isFirst}
+                                                        className={`p-1.5 rounded-lg transition-colors ${isFirst ? 'text-slate-300 cursor-not-allowed' : 'text-slate-500 hover:bg-white hover:text-brand-primary hover:shadow-sm border border-transparent hover:border-slate-200'}`}
+                                                    >
+                                                        <ChevronUpIcon className="w-6 h-6" />
+                                                    </button>
+                                                    <button 
+                                                        onClick={(e) => { e.stopPropagation(); moveItem(index, 'down'); }}
+                                                        disabled={isLast}
+                                                        className={`p-1.5 rounded-lg transition-colors ${isLast ? 'text-slate-300 cursor-not-allowed' : 'text-slate-500 hover:bg-white hover:text-brand-primary hover:shadow-sm border border-transparent hover:border-slate-200'}`}
+                                                    >
+                                                        <ChevronDownIcon className="w-6 h-6" />
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        )}
+                                        <td className="px-5 py-4 font-bold text-slate-800 align-middle">
+                                            {canModify ? (
+                                                <button 
+                                                    onClick={() => handleOpenEdit(item)}
+                                                    className="text-left hover:text-brand-primary hover:underline transition-colors decoration-2 underline-offset-2"
+                                                    title="Editar ítem"
+                                                >
+                                                    {item.nombre_medicamento}
+                                                </button>
+                                            ) : (
+                                                item.nombre_medicamento
+                                            )}
+                                        </td>
+                                        <td className="px-5 py-4 text-slate-600 font-medium align-middle">{item.formato}</td>
+                                        <td className="px-5 py-4 text-center align-middle">
+                                            <div className="flex items-center justify-center">
+                                                <span className="inline-flex items-baseline gap-1.5 px-3 py-1 bg-brand-light text-brand-primary font-bold rounded-lg border border-brand-secondary/10">
+                                                    <span className="text-lg">{item.cantidad_total}</span>
+                                                    <span className="text-xs font-extrabold uppercase ml-1 opacity-90">{item.unidad || 'Comp'}</span>
+                                                </span>
+                                            </div>
+                                        </td>
+                                        <td className="px-5 py-4 text-slate-500 text-sm align-middle">{item.procedencia}</td>
+                                        {canModify && (
+                                            <td className="px-5 py-4 text-right align-middle">
+                                                <div className="flex items-center justify-end gap-1">
+                                                    <button onClick={() => handleOpenEdit(item)} className="p-2 text-slate-400 hover:text-brand-primary hover:bg-white rounded-lg transition-colors"><PencilIcon className="w-4 h-4" /></button>
+                                                    <button onClick={() => setItemToDelete(item)} className="p-2 text-slate-400 hover:text-red-500 hover:bg-white rounded-lg transition-colors"><TrashIcon className="w-4 h-4" /></button>
+                                                </div>
+                                            </td>
+                                        )}
+                                    </tr>
+                                );
+                            })
+                        ) : (
+                            <tr>
+                                <td colSpan={canReorder ? 6 : 5} className="text-center p-12 text-slate-400 italic">
+                                    {items.length === 0 ? "El botiquín está vacío. Use el botón superior para cargar los datos." : "No se encontraron resultados para su búsqueda."}
+                                </td>
+                            </tr>
+                        )}
+                    </tbody>
+                </table>
+            </div>
         </div>
       </div>
 
