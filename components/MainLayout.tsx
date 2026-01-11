@@ -310,6 +310,30 @@ const MainLayout: React.FC<MainLayoutProps> = ({ user, onLogout, users, setUsers
     } catch (e: any) { alert("Error: " + e.message); } finally { setLoadingData(false); }
   }, [fetchData]);
 
+  const handleReorderMedications = useCallback(async (reorderedMeds: ResidentMedication[]) => {
+      if (reorderedMeds.length === 0) return;
+      
+      // 1. Optimistic update
+      setResidentMedications(prev => {
+          const residentId = reorderedMeds[0].residentId;
+          const others = prev.filter(m => m.residentId !== residentId);
+          // Ensure new list has updated displayOrder property in memory
+          const updated = reorderedMeds.map((m, i) => ({ ...m, displayOrder: i }));
+          return [...others, ...updated];
+      });
+
+      // 2. Persist to DB
+      try {
+          // We must update sequentially or in parallel.
+          await Promise.all(reorderedMeds.map((m, index) => 
+              supabase.from('resident_medications').update({ orden_personalizado: index }).eq('id', m.id)
+          ));
+      } catch (e) {
+          console.error("Error updating medication order:", e);
+          fetchData(); // Revert
+      }
+  }, [fetchData]);
+
   const handleSaveReport = useCallback(async (rep: any) => { 
     try {
         const { error } = await supabase.from('medical_reports').insert({
@@ -348,7 +372,22 @@ const MainLayout: React.FC<MainLayoutProps> = ({ user, onLogout, users, setUsers
 
     if (activePanel === Panel.ResidentMedications && selectedResident) {
       const residentMeds = residentMedications.filter(m => m.residentId === selectedResident.id);
-      return <ResidentMedicationsPanel user={user} resident={selectedResident} onBack={handleBackToResidents} medications={residentMeds} onSaveMedication={handleSaveMedication} onDeleteMedication={handleDeleteMedication} onReorderMedications={()=>{}} medicalReports={medicalReports.filter(r => r.residentId === selectedResident.id)} onSaveReport={handleSaveReport} onDeleteReport={handleDeleteReport} lowStockThreshold={lowStockThreshold} />;
+      // Sort locally to ensure consistency
+      residentMeds.sort((a, b) => (a.displayOrder || 0) - (b.displayOrder || 0));
+      
+      return <ResidentMedicationsPanel 
+          user={user} 
+          resident={selectedResident} 
+          onBack={handleBackToResidents} 
+          medications={residentMeds} 
+          onSaveMedication={handleSaveMedication} 
+          onDeleteMedication={handleDeleteMedication} 
+          onReorderMedications={handleReorderMedications} 
+          medicalReports={medicalReports.filter(r => r.residentId === selectedResident.id)} 
+          onSaveReport={handleSaveReport} 
+          onDeleteReport={handleDeleteReport} 
+          lowStockThreshold={lowStockThreshold} 
+      />;
     }
 
     switch (activePanel) {
