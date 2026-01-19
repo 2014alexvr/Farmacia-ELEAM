@@ -93,15 +93,20 @@ const ResidentMedicationsPanel: React.FC<ResidentMedicationsPanelProps> = ({
   const [medicationToDelete, setMedicationToDelete] = useState<ResidentMedication | null>(null);
   const age = calculateAge(resident.dateOfBirth);
   
-  // ZOOM STATE - DEFAULT 50%
-  const [zoomLevel, setZoomLevel] = useState(0.5);
+  // ZOOM STATE - DEFAULT 100%
+  const [zoomLevel, setZoomLevel] = useState(1);
 
   const canAdd = user.permissions === 'Total' || user.permissions === 'Modificar';
   const canModify = user.permissions === 'Total' || user.permissions === 'Modificar';
   const canDelete = user.permissions === 'Total' || user.permissions === 'Modificar';
 
   const handleSave = (medicationData: Omit<ResidentMedication, 'id' | 'residentId'> | ResidentMedication) => {
-    onSaveMedication(medicationData);
+    // CRITICAL FIX: Inject residentId so the main layout knows who this med belongs to
+    const completeData = {
+        ...medicationData,
+        residentId: resident.id
+    };
+    onSaveMedication(completeData as ResidentMedication);
     setIsModalOpen(false);
     setMedicationToEdit(null);
   }
@@ -332,7 +337,7 @@ const ResidentMedicationsPanel: React.FC<ResidentMedicationsPanelProps> = ({
                     <h2 className="text-lg font-bold text-slate-800">Listado de Medicamentos</h2>
                     {canAdd && (
                       <button onClick={handleOpenModalForAdd} className="px-4 py-2 bg-brand-primary text-white font-bold rounded-xl shadow-lg shadow-brand-primary/30 hover:bg-brand-dark transition-all active:scale-95 print:hidden text-xs whitespace-nowrap">
-                          + Agregar
+                          + Agregar Medicamento
                       </button>
                     )}
                 </div>

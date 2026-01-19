@@ -28,8 +28,8 @@ const GeneralKitPanel: React.FC<GeneralKitPanelProps> = ({ user, items, onSaveIt
   const [itemToEdit, setItemToEdit] = useState<GeneralMedication | undefined>(undefined);
   const [itemToDelete, setItemToDelete] = useState<GeneralMedication | null>(null);
   
-  // ZOOM STATE - DEFAULT 50%
-  const [zoomLevel, setZoomLevel] = useState(0.5);
+  // ZOOM STATE - DEFAULT 100%
+  const [zoomLevel, setZoomLevel] = useState(1);
 
   // Hidden input ref for file selection
   const fileInputRef = useRef<HTMLInputElement>(null);
